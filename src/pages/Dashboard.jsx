@@ -31,7 +31,18 @@ const Dashboard = () => {
           </div>
         </div>
 
-{/* MENU CEPAT (Tambahkan Section Ini setelah Grid Statistik) */}
+        {/* Card 2 */}
+        <div className="bg-indigo-50/50 p-5 rounded-3xl border border-indigo-100/50 flex flex-col justify-between h-32 relative overflow-hidden group">
+           <div className="absolute -right-4 -top-4 bg-indigo-100 w-20 h-20 rounded-full opacity-50 group-hover:scale-110 transition-transform"></div>
+          <Users className="text-indigo-600 relative z-10" size={24} />
+          <div className="relative z-10">
+             <p className="text-2xl font-bold text-slate-800">0</p>
+             <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mt-1">Siswa Aktif</p>
+          </div>
+        </div>
+      </section>
+
+      {/* MENU CEPAT (Tambahkan Section Ini setelah Grid Statistik) */}
       <section className="mt-2">
         <h2 className="font-bold text-slate-800 mb-3 text-lg">Menu Utama</h2>
         <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-100 space-y-1">
@@ -72,18 +83,6 @@ const Dashboard = () => {
             <ChevronRight size={18} className="text-slate-300" />
           </div>
 
-        </div>
-      </section>
-
-
-        {/* Card 2 */}
-        <div className="bg-indigo-50/50 p-5 rounded-3xl border border-indigo-100/50 flex flex-col justify-between h-32 relative overflow-hidden group">
-           <div className="absolute -right-4 -top-4 bg-indigo-100 w-20 h-20 rounded-full opacity-50 group-hover:scale-110 transition-transform"></div>
-          <Users className="text-indigo-600 relative z-10" size={24} />
-          <div className="relative z-10">
-             <p className="text-2xl font-bold text-slate-800">0</p>
-             <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mt-1">Siswa Aktif</p>
-          </div>
         </div>
       </section>
 
