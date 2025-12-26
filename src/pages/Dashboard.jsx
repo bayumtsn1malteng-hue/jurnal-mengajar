@@ -1,11 +1,11 @@
 // src/pages/Dashboard.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
-// Import ikon dari lucide-react sesuai desain baru
-import { Calendar, Users, Book, Settings, ChevronRight, ClipboardCheck } from 'lucide-react'; 
+// Tambahkan 'GraduationCap' untuk ikon Nilai
+import { Calendar, Users, Book, Settings, ChevronRight, ClipboardCheck, GraduationCap } from 'lucide-react'; 
 
 const Dashboard = () => {
-  // Tanggal dummy dulu
+  // Tanggal dummy
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
@@ -50,7 +50,7 @@ const Dashboard = () => {
         <h2 className="font-bold text-slate-800 mb-3 text-lg">Menu Utama</h2>
         <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-100 space-y-1">
           
-          {/* 1. Menu ABSENSI (Yang baru kita buat) */}
+          {/* 1. Menu ABSENSI */}
           <Link to="/absensi" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
             <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
               <ClipboardCheck size={20} />
@@ -62,7 +62,19 @@ const Dashboard = () => {
             <ChevronRight size={18} className="text-slate-300" />
           </Link>
 
-          {/* 2. Menu Data Kelas */}
+          {/* 2. Menu BUKU NILAI (BARU DITAMBAHKAN) */}
+          <Link to="/nilai" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
+            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
+              <GraduationCap size={20} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-slate-700 text-sm">Buku Nilai</h3>
+              <p className="text-xs text-slate-400">Input nilai UH, Tugas, UTS</p>
+            </div>
+            <ChevronRight size={18} className="text-slate-300" />
+          </Link>
+
+          {/* 3. Menu Data Kelas */}
           <Link to="/kelas" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
             <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
               <Users size={20} />
@@ -74,7 +86,7 @@ const Dashboard = () => {
             <ChevronRight size={18} className="text-slate-300" />
           </Link>
 
-          {/* 3. Menu RPP / Bank Materi */}
+          {/* 4. Menu RPP */}
           <Link to="/rencana-ajar" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
             <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-600">
               <Book size={20} />
@@ -86,7 +98,7 @@ const Dashboard = () => {
             <ChevronRight size={18} className="text-slate-300" />
           </Link>
 
-          {/* 4. Pengaturan (Dummy) */}
+          {/* 5. Pengaturan (Dummy) */}
           <div className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors opacity-50 cursor-not-allowed">
             <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600">
               <Settings size={20} />
