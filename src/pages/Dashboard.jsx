@@ -98,17 +98,17 @@ const Dashboard = () => {
             <ChevronRight size={18} className="text-slate-300" />
           </Link>
 
-          {/* 5. Pengaturan (Dummy) */}
-          <div className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors opacity-50 cursor-not-allowed">
-            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600">
-              <Settings size={20} />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-slate-700 text-sm">Pengaturan</h3>
-              <p className="text-xs text-slate-400">Data sekolah & profil</p>
-            </div>
-            <ChevronRight size={18} className="text-slate-300" />
-          </div>
+          {/* 5. Pengaturan (SUDAH DIAKTIFKAN) */}
+          <Link to="/pengaturan" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
+              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600">
+                  <Settings size={20} />
+              </div>
+              <div className="flex-1">
+                  <h3 className="font-bold text-slate-700 text-sm">Pengaturan & Backup</h3>
+                  <p className="text-xs text-slate-400">Amankan data Anda</p>
+              </div>
+              <ChevronRight size={18} className="text-slate-300" />
+          </Link>
 
         </div>
       </section>
