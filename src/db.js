@@ -48,6 +48,15 @@ db.version(1).stores({
   grades: '++id, studentId, assessmentMetaId, score, date' 
 });
 
+db.version(2).stores({
+  // Kita timpa definisi tabel assessments_meta agar ada kolom 'subject' dan 'classId'
+  // [classId+subject] -> Agar pencarian "Nilai B.Arab Kelas 7A" cepat.
+  assessments_meta: '++id, syllabusId, name, type, subject, classId, date, [classId+subject]',
+  
+  // Tabel grades tetap sama, tapi kita pertegas indeksnya
+  grades: '++id, studentId, assessmentMetaId, score'
+});
+
 // Seed Data (Contoh Data Awal agar tidak kosong melompong saat dev)
 db.on('populate', () => {
   db.settings.bulkAdd([
