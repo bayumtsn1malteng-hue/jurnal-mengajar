@@ -2,6 +2,15 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('jurnal_guru_v2'); // Ganti nama DB biar fresh
 
+// Ini kita tambahkan agar di UI nanti kita bisa panggil STATUS_ABSENSI.SAKIT
+export const STATUS_ABSENSI = {
+  HADIR: 1,
+  SAKIT: 2,
+  IZIN: 3,
+  ALPA: 4,
+  BOLOS: 5
+};
+
 db.version(1).stores({
   // --- MASTER DATA (PENGHUNI) ---
   // settings: Guru & Sekolah
@@ -31,7 +40,8 @@ db.version(1).stores({
   
   // attendance: Log Absensi
   // Hanya mencatat yang TIDAK HADIR (Hemat data)
-  attendance: '++id, date, classId, studentId, status', 
+  // Kita tambahkan [date+classId] agar pencarian "Absen Kelas X hari Senin" cepat.
+  attendance: '++id, date, classId, studentId, status, [date+classId]', 
 
   // grades: Buku Nilai
   // assessmentMetaId: Menghubungkan nilai ke "Latihan 1"

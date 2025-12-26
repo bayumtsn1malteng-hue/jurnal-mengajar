@@ -7,6 +7,7 @@ import Kelas from './pages/Kelas';
 import KelasDetail from './pages/KelasDetail';
 import Profil from './pages/Profil';
 import RencanaAjar from './pages/RencanaAjar';
+import AbsensiPage from './pages/AbsensiPage';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path= "/kelas" element={<Kelas />}/>
           <Route path= "/kelas/:id" element={<KelasDetail />} />
           <Route path="/jurnal" element={<div className="p-6">Halaman Jurnal (Segera)</div>} />
+          <Route path="/absensi" element={<AbsensiPage />}/>
           <Route path="/rencana-ajar" element={<RencanaAjar />}/>
           <Route path="/profil" element={<Profil />} />
         </Route>

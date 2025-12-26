@@ -1,12 +1,15 @@
+// src/pages/Dashboard.jsx
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Users, Book, Settings, ChevronRight } from 'lucide-react'; 
+// Import ikon dari lucide-react sesuai desain baru
+import { Calendar, Users, Book, Settings, ChevronRight, ClipboardCheck } from 'lucide-react'; 
 
 const Dashboard = () => {
   // Tanggal dummy dulu
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-6 space-y-8 max-w-md mx-auto pb-24">
       
       {/* Header Section */}
       <header>
@@ -21,7 +24,7 @@ const Dashboard = () => {
 
       {/* Statistik Grid */}
       <section className="grid grid-cols-2 gap-4">
-        {/* Card 1 */}
+        {/* Card 1: Jurnal */}
         <div className="bg-teal-50/50 p-5 rounded-3xl border border-teal-100/50 flex flex-col justify-between h-32 relative overflow-hidden group">
           <div className="absolute -right-4 -top-4 bg-teal-100 w-20 h-20 rounded-full opacity-50 group-hover:scale-110 transition-transform"></div>
           <Book className="text-teal-600 relative z-10" size={24} />
@@ -31,7 +34,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Card 2 */}
+        {/* Card 2: Siswa */}
         <div className="bg-indigo-50/50 p-5 rounded-3xl border border-indigo-100/50 flex flex-col justify-between h-32 relative overflow-hidden group">
            <div className="absolute -right-4 -top-4 bg-indigo-100 w-20 h-20 rounded-full opacity-50 group-hover:scale-110 transition-transform"></div>
           <Users className="text-indigo-600 relative z-10" size={24} />
@@ -42,11 +45,24 @@ const Dashboard = () => {
         </div>
       </section>
 
-      {/* MENU CEPAT (Tambahkan Section Ini setelah Grid Statistik) */}
+      {/* MENU CEPAT */}
       <section className="mt-2">
         <h2 className="font-bold text-slate-800 mb-3 text-lg">Menu Utama</h2>
         <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-100 space-y-1">
           
+          {/* 1. Menu ABSENSI (Yang baru kita buat) */}
+          <Link to="/absensi" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
+            <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
+              <ClipboardCheck size={20} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-slate-700 text-sm">Absensi Siswa</h3>
+              <p className="text-xs text-slate-400">Catat kehadiran harian</p>
+            </div>
+            <ChevronRight size={18} className="text-slate-300" />
+          </Link>
+
+          {/* 2. Menu Data Kelas */}
           <Link to="/kelas" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
             <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
               <Users size={20} />
@@ -58,21 +74,20 @@ const Dashboard = () => {
             <ChevronRight size={18} className="text-slate-300" />
           </Link>
 
-          {/*Di dalam bagian MENU UTAMA (di bawah Link Data Kelas)*/} 
-
+          {/* 3. Menu RPP / Bank Materi */}
           <Link to="/rencana-ajar" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
             <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-600">
               <Book size={20} />
             </div>
             <div className="flex-1">
               <h3 className="font-bold text-slate-700 text-sm">Bank Materi (RPP)</h3>
-              <p className="text-xs text-slate-400">Atur silabus & tujuan pembelajaran</p>
+              <p className="text-xs text-slate-400">Atur silabus & tujuan</p>
             </div>
             <ChevronRight size={18} className="text-slate-300" />
           </Link>
 
-          {/* Menu Dummy Lain */}
-          <div className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors opacity-50">
+          {/* 4. Pengaturan (Dummy) */}
+          <div className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors opacity-50 cursor-not-allowed">
             <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600">
               <Settings size={20} />
             </div>
