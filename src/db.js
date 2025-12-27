@@ -69,8 +69,8 @@ db.version(3).stores({
 // Seed Data (Contoh Data Awal agar tidak kosong melompong saat dev)
 db.on('populate', () => {
   db.settings.bulkAdd([
-    { key: 'teacherName', value: 'Nama Guru' },
-    { key: 'schoolName', value: 'Nama Sekolah' }
+    { key: 'teacherName', value: '' },
+    { key: 'schoolName', value: '' }
   ]);
 });
 
