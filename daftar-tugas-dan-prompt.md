@@ -52,7 +52,10 @@ Semua fitur saat ini sudah sesuai dan tidak perlu diubah. Saya hanya menginginka
 5. fix: JurnalPage.jsx // -- "Edit Data Absen" mengarahkan ke absen yang tepat.
 6. fix: User Login
 7. feat: backup excel
-8. fix: Dashboard.jsx // -- ubah "HALO, CIKGU" menjadi "HALO, [NAMA GURU]
+8. ~~fix: Dashboard.jsx // -- ubah "HALO, CIKGU" menjadi "HALO, [NAMA GURU]~~
+9. ~~fix: Profil.jsx // -- tambahkan fitur memasukkan jadwal~~
+10. ~~fix: Profil.Jsx // -- Ubah checkbox menjadi dropdown; terpilih tertulis di bawahnya; di samping mata pelajaran terpilih ada tong sampah untuk menghapus.~~
+11. feat: notifikasi HP. "Anda harus mengajar Hari ini.
 
 
 ---
