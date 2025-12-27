@@ -45,6 +45,7 @@ Semua fitur saat ini sudah sesuai dan tidak perlu diubah. Saya hanya menginginka
 ---
 # PENAMBAHAN FITUR 
 
+## Tambahan Fitur Pribadi
 1. fix: AbsensiPage.jsx // -- Reset kehadiran di 1 kelas bila ganti hari
 2. fix: RencanaAjar.jsx // -- Fitur Update Materi
 3. fix: RencanaAjar.jsx // -- Fitur update latihan; ubah tampilan kartu latihan bila mengambang.
@@ -55,9 +56,25 @@ Semua fitur saat ini sudah sesuai dan tidak perlu diubah. Saya hanya menginginka
 8. ~~fix: Dashboard.jsx // -- ubah "HALO, CIKGU" menjadi "HALO, [NAMA GURU]~~
 9. ~~fix: Profil.jsx // -- tambahkan fitur memasukkan jadwal~~
 10. ~~fix: Profil.Jsx // -- Ubah checkbox menjadi dropdown; terpilih tertulis di bawahnya; di samping mata pelajaran terpilih ada tong sampah untuk menghapus.~~
-11. feat: notifikasi HP. "Anda harus mengajar Hari ini.
+11. feat: notifikasi HP. "Saatnya Masuk Kelas"
+12. feat: tampilan awal cantik, selain logo tampilkan 'brand' : The Curious Mind dan tag: 'mewawasi dunia, menerangi minda'
 
+---
+## Tambahan dari gemini
+### Fitur Export Excel (Prioritas Tinggi):
 
+Di src/pages/NilaiPage.jsx, Anda perlu menambahkan tombol untuk mengunduh rekap nilai menjadi file .xlsx. Tanpa ini, guru akan kesulitan memindahkan nilai ke Raport resmi sekolah.
+
+### Validasi Aset PWA:
+
+Di vite.config.js, Anda mereferensikan ikon pwa-1024x1024.png. Pastikan file fisik gambar tersebut benar-benar ada di folder public dan ukurannya sesuai, agar saat diinstal di HP ikonnya tampil cantik.
+
+### Navigasi Jurnal:
+
+Pastikan tombol "Lihat Semua" di Dashboard atau menu navigasi bawah sudah benar-benar mengarah ke /jurnal (komponen JurnalPage.jsx).
+
+### Pembaruan Profil
+menambahkan semester dan tahun ajaran.
 ---
 ## Halaman Absensi
 SITUASI SAAT INI: 
