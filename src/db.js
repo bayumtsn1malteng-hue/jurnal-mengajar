@@ -57,6 +57,15 @@ db.version(2).stores({
   grades: '++id, studentId, assessmentMetaId, score'
 });
 
+// --- UPDATE V3: Fitur Jurnal Refleksi & Tags ---
+// Upadate db ke versi 3 tanggal 27/12/225 21.45
+db.version(3).stores({
+  // Kita update tabel journals.
+  // Perhatikan tanda bintang (*) di depan tags.
+  // Ini memberitahu Dexie: "tags adalah Array, tolong indeks setiap isinya agar bisa dicari satu per satu."
+  journals: '++id, date, classId, syllabusId, *tags'
+});
+
 // Seed Data (Contoh Data Awal agar tidak kosong melompong saat dev)
 db.on('populate', () => {
   db.settings.bulkAdd([
