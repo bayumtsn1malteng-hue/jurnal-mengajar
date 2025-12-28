@@ -5,10 +5,10 @@ import { User, School, Book, Save, Trash2, Plus, X, Clock, Calendar } from 'luci
 
 // --- DATA KONSTANTA ---
 const SUBJECT_OPTIONS = [
-  "Matematika", "Bahasa Indonesia", "Bahasa Inggris", "IPA", "IPS", 
-  "PKn", "PJOK", "Seni Budaya", "Prakarya", "Agama Islam", 
-  "Agama Kristen", "Agama Katolik", "Sejarah", "Geografi", "Ekonomi", 
-  "Sosiologi", "Fisika", "Kimia", "Biologi", "Informatika", "BK"
+  "Al-Qur`an Hadits", "Akidah Akhlak", "Fikih", "Sejarah Kebudayaan Islam", "Bahasa Arab", 
+  "Bahasa Indonesia", "Pendidikan Pancasila", "Matematika", "Ilmu Pengetahuan Alam", "Ilmu Pengetahuan Sosial", 
+  "Bahasa Inggris", "Pendidikan Jasmani Olahraga dan Kesehatan", "Informatika", "Seni dan Prakarya", "Muatan Lokal", 
+  "Bimbingan dan Konseling"
 ];
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
