@@ -20,6 +20,9 @@
 14. ~~fix: navigasi lama.~~ 
 15. ~~fix: menambahkan kemampuan untuk export excel di buku nilai. ~~
 16. [Bila memungkinkan, menyediakan tutorial aplikasi bagi pengguna baru](tutorial.md)
+17. [Fitur berbagi masih belum bisa di PengaturanPage.jsx](berbagi-json.md)
+18. [Notifikasi untuk back-up data secara reguler](notifikasi.md)
+19. [Menambahkan fitur untuk ekspor absensi dan nilai ke excel](ekspor.md)
 
 ---
 ## Tambahan dari gemini

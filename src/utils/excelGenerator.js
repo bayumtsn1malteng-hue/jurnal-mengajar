@@ -3,12 +3,13 @@ import { utils, writeFile } from 'xlsx';
 import { STATUS_ABSENSI } from '../db';
 
 /**
- * 1. REKAP ABSENSI
+ * HELPER INTERNAL: Membuat Worksheet Absensi
+ * Dipisahkan agar bisa dipakai untuk download single (AbsensiPage) maupun bulk (PengaturanPage)
  */
-export const downloadAttendanceExcel = async (classId, className, dbInstance) => {
+const createAttendanceWorksheet = async (classId, className, dbInstance) => {
   if (!classId) throw new Error("Class ID is required");
 
-  // Tentukan Semester (Ganjil/Genap)
+  // 1. Tentukan Semester
   const today = new Date();
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
@@ -24,19 +25,15 @@ export const downloadAttendanceExcel = async (classId, className, dbInstance) =>
     endDate = `${currentYear}-06-30`;
   }
 
-  // Ambil Tanggal Jurnal (Header Kolom)
+  // 2. Ambil Jurnal (Header Tanggal)
   const journalsInRange = await dbInstance.journals
     .where('classId').equals(classId)
     .filter(j => j.date >= startDate && j.date <= endDate)
     .sortBy('date');
 
-  if (journalsInRange.length === 0) {
-    throw new Error(`Belum ada data mengajar untuk Kelas ${className} di Semester ${semesterName}.`);
-  }
-
   const dateColumns = journalsInRange.map(j => j.date);
 
-  // Ambil Data Absensi
+  // 3. Ambil Data Absensi
   const attendanceInRange = await dbInstance.attendance
     .where('classId').equals(classId)
     .filter(a => a.date >= startDate && a.date <= endDate)
@@ -47,12 +44,12 @@ export const downloadAttendanceExcel = async (classId, className, dbInstance) =>
     attMap[`${a.studentId}_${a.date}`] = a.status;
   });
 
-  // Ambil Siswa
+  // 4. Ambil Siswa
   const studentList = await dbInstance.students
     .where('classId').equals(classId)
     .sortBy('name');
 
-  // Susun Data Excel
+  // 5. Susun Data Excel
   const excelData = [];
   studentList.forEach((s, index) => {
     const row = {
@@ -84,14 +81,26 @@ export const downloadAttendanceExcel = async (classId, className, dbInstance) =>
     excelData.push(row);
   });
 
-  // Generate Sheet
+  // 6. Buat Sheet
   const ws = utils.json_to_sheet(excelData);
+  
   utils.sheet_add_aoa(ws, [
     [`REKAPITULASI ABSENSI SEMESTER ${semesterName} ${currentYear}`],
     [`Kelas: ${className}`],
     ['']
   ], { origin: "A1" });
 
+  return { ws, semesterName };
+};
+
+
+/**
+ * 1. DOWNLOAD SINGLE CLASS ABSENSI 
+ * (Digunakan di AbsensiPage.jsx)
+ */
+export const downloadAttendanceExcel = async (classId, className, dbInstance) => {
+  const { ws, semesterName } = await createAttendanceWorksheet(classId, className, dbInstance);
+  
   const wb = utils.book_new();
   utils.book_append_sheet(wb, ws, "Rekap Absensi");
   writeFile(wb, `Rekap_Absen_${className}_${semesterName}.xlsx`);
@@ -99,43 +108,68 @@ export const downloadAttendanceExcel = async (classId, className, dbInstance) =>
 
 
 /**
- * 2. REKAP NILAI (NEW FEATURE)
+ * 2. DOWNLOAD ALL CLASSES ABSENSI
+ * (Digunakan di PengaturanPage.jsx)
+ */
+export const downloadAllAttendance = async (dbInstance) => {
+    const classes = await dbInstance.classes.toArray();
+    if (classes.length === 0) throw new Error("Belum ada data kelas.");
+
+    const wb = utils.book_new();
+    let hasData = false;
+
+    for (const cls of classes) {
+        try {
+            const { ws } = await createAttendanceWorksheet(cls.id, cls.name, dbInstance);
+            
+            // Nama sheet max 31 char & karakter aman
+            const sheetName = cls.name.replace(/[\\/?*[\]]/g, "").substring(0, 30);
+            utils.book_append_sheet(wb, ws, sheetName);
+            hasData = true;
+        } catch (e) {
+            // FIX ESLINT: Gunakan variabel 'e' untuk logging (walau warning),
+            // atau hapus '(e)' jika environment mendukung ES2019 catch binding.
+            // Di sini kita log agar 'e' terpakai dan kita tahu errornya apa.
+            console.warn(`Gagal generate sheet kelas ${cls.name}:`, e);
+        }
+    }
+
+    if (!hasData) throw new Error("Tidak ada data absensi untuk diekspor.");
+    writeFile(wb, `FULL_ABSENSI_${new Date().getFullYear()}.xlsx`);
+};
+
+
+/**
+ * 3. DOWNLOAD SINGLE NILAI 
+ * (Digunakan di NilaiPage.jsx)
  */
 export const downloadGradesExcel = async (classId, className, subject, dbInstance) => {
     if (!classId) throw new Error("Pilih Kelas terlebih dahulu.");
 
-    // 1. Ambil Semua Penilaian (Kolom) untuk Kelas & Mapel ini
+    // Ambil Data
     const assessments = await dbInstance.assessments_meta
         .where({ classId: parseInt(classId), subject: subject })
         .sortBy('date');
 
-    if (assessments.length === 0) {
-        throw new Error(`Belum ada penilaian untuk Mapel ${subject} di Kelas ${className}.`);
-    }
+    if (assessments.length === 0) throw new Error(`Belum ada penilaian Mapel ${subject} di Kelas ${className}.`);
 
-    // 2. Ambil Siswa (Baris)
     const students = await dbInstance.students
         .where('classId').equals(parseInt(classId))
         .sortBy('name');
 
-    if (students.length === 0) {
-        throw new Error("Data siswa tidak ditemukan.");
-    }
+    if (students.length === 0) throw new Error("Data siswa tidak ditemukan.");
 
-    // 3. Ambil Semua Nilai (Isi)
-    // Dexie 'anyOf' untuk mengambil nilai dari daftar ID assessment
     const assessmentIds = assessments.map(a => a.id);
     const allGrades = await dbInstance.grades
         .where('assessmentMetaId').anyOf(assessmentIds)
         .toArray();
 
-    // Mapping Nilai biar cepat akses: gradesMap[studentId_assessmentId] = score
     const gradesMap = {};
     allGrades.forEach(g => {
         gradesMap[`${g.studentId}_${g.assessmentMetaId}`] = g.score;
     });
 
-    // 4. Susun Format Excel
+    // Susun Data
     const excelData = students.map((s, index) => {
         const row = {
             No: index + 1,
@@ -148,8 +182,7 @@ export const downloadGradesExcel = async (classId, className, subject, dbInstanc
 
         assessments.forEach(a => {
             const score = gradesMap[`${s.id}_${a.id}`];
-            // Nama Kolom: "UH1 (Materi)" atau cukup Nama Penilaian
-            row[a.name] = score !== undefined ? score : ''; // Kosongkan jika belum dinilai
+            row[a.name] = score !== undefined ? score : ''; 
 
             if (score !== undefined) {
                 totalScore += score;
@@ -157,26 +190,75 @@ export const downloadGradesExcel = async (classId, className, subject, dbInstanc
             }
         });
 
-        // Hitung Rata-rata
         row['Rata-Rata'] = countScore > 0 ? (totalScore / countScore).toFixed(2) : 0;
-        
         return row;
     });
 
-    // 5. Generate File
     const ws = utils.json_to_sheet(excelData);
 
-    // Header Judul
     utils.sheet_add_aoa(ws, [
         [`DAFTAR NILAI ${subject.toUpperCase()}`],
         [`Kelas: ${className}`],
-        [''] // Spasi
+        [''] 
     ], { origin: "A1" });
 
     const wb = utils.book_new();
     utils.book_append_sheet(wb, ws, "Rekap Nilai");
     
-    // Nama file yang aman
     const safeSubject = subject.replace(/[^a-z0-9]/gi, '_').substring(0, 10);
     writeFile(wb, `Nilai_${safeSubject}_${className}.xlsx`);
+};
+
+
+/**
+ * 4. DOWNLOAD ALL GRADES
+ * (Digunakan di PengaturanPage.jsx)
+ */
+export const downloadAllGrades = async (dbInstance) => {
+    const classes = await dbInstance.classes.toArray();
+    if (classes.length === 0) throw new Error("Belum ada data kelas.");
+
+    const wb = utils.book_new();
+    let hasData = false;
+
+    for (const cls of classes) {
+        // Ambil Siswa
+        const students = await dbInstance.students.where('classId').equals(cls.id).sortBy('name');
+        if (students.length === 0) continue;
+
+        // Ambil Penilaian
+        const assessments = await dbInstance.assessments_meta.where('classId').equals(cls.id).toArray();
+        if (assessments.length === 0) continue;
+
+        // Ambil Nilai
+        const metaIds = assessments.map(a => a.id);
+        const grades = await dbInstance.grades.where('assessmentMetaId').anyOf(metaIds).toArray();
+        const gradeMap = {};
+        grades.forEach(g => gradeMap[`${g.studentId}_${g.assessmentMetaId}`] = g.score);
+
+        // Susun Data Flat
+        const excelData = students.map((s, idx) => {
+            const row = { No: idx + 1, NIS: s.nis, Nama: s.name };
+            
+            assessments.forEach(ass => {
+                const val = gradeMap[`${s.id}_${ass.id}`];
+                // Header format: "MTK - UH1"
+                const header = `${ass.subject?.substring(0,3) || 'Mapel'} - ${ass.name}`; 
+                row[header] = val !== undefined ? val : '';
+            });
+            return row;
+        });
+
+        if (excelData.length > 0) {
+            const ws = utils.json_to_sheet(excelData);
+            utils.sheet_add_aoa(ws, [[`REKAP NILAI KELAS ${cls.name}`], ['']], { origin: "A1" });
+            
+            const sheetName = cls.name.replace(/[\\/?*[\]]/g, "").substring(0, 30);
+            utils.book_append_sheet(wb, ws, sheetName);
+            hasData = true;
+        }
+    }
+
+    if (!hasData) throw new Error("Belum ada data nilai untuk diekspor.");
+    writeFile(wb, `FULL_NILAI_${new Date().getFullYear()}.xlsx`);
 };
