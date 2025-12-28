@@ -1,23 +1,24 @@
 // src/pages/AbsensiPage.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ChevronLeft, Plus, Calendar, Filter, Save, Search, Trash2, Users, BookOpen, Download } from 'lucide-react';
-import { db, STATUS_ABSENSI } from '../db';
+import { STATUS_ABSENSI } from '../db';
 import StudentAttendanceRow from '../components/StudentAttendanceRow';
-import { utils, writeFile } from 'xlsx'; // Import Library Excel
+import { downloadAttendanceExcel } from '../utils/excelGenerator';
+import { attendanceService } from '../services/attendanceService';
+// --- NEW IMPORTS ---
+import toast from 'react-hot-toast';
+import ConfirmModal from '../components/ConfirmModal';
 
 const AbsensiPage = () => {
-  const [view, setView] = useState('list'); // 'list' | 'create' | 'input'
+  const [view, setView] = useState('list'); 
   
-  // --- MASTER DATA ---
   const [historyList, setHistoryList] = useState([]); 
   const [classes, setClasses] = useState([]);
   const [syllabusList, setSyllabusList] = useState([]); 
 
-  // --- FILTER STATE ---
   const [filterClassId, setFilterClassId] = useState('');
   const [filterTopicId, setFilterTopicId] = useState('');
 
-  // --- INPUT STATE ---
   const [sessionData, setSessionData] = useState({
     id: null, 
     date: new Date().toISOString().split('T')[0],
@@ -30,65 +31,51 @@ const AbsensiPage = () => {
   const [attendanceMap, setAttendanceMap] = useState({}); 
   const [loading, setLoading] = useState(false);
 
-  // --- 1. LOAD DATA (FIX: Pakai useCallback agar tidak warning) ---
+  // --- MODAL STATE (NEW) ---
+  const [modal, setModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false
+  });
+
+  // Helper untuk membuka modal
+  const confirmAction = (title, message, action, isDanger = false) => {
+    setModal({ isOpen: true, title, message, onConfirm: action, isDanger });
+  };
+
   const loadHistory = useCallback(async () => {
     try {
-      const cls = await db.classes.toArray();
-      const syl = await db.syllabus.toArray(); 
-      const journals = await db.journals.reverse().toArray();
+      const data = await attendanceService.getHistoryLog();
+      setHistoryList(data);
+    } catch (error) { 
+      console.error(error); 
+      toast.error("Gagal memuat riwayat"); 
+    }
+  }, []); 
 
-      const joined = journals.map(j => {
-         const sId = j.syllabusId ? parseInt(j.syllabusId) : 0;
-         const topicItem = syl.find(s => s.id === sId);
-         
-         let topicDisplay = 'Topik Tidak Diketahui';
-         if (topicItem) {
-             topicDisplay = `${topicItem.meetingOrder} - ${topicItem.topic}`;
-         } else if (j.customTopic) {
-             topicDisplay = `(Manual) ${j.customTopic}`;
-         } else {
-             topicDisplay = 'Topik Terhapus / Kosong';
-         }
-
-         return {
-            ...j,
-            className: cls.find(c => c.id === j.classId)?.name || '?',
-            topicName: topicDisplay
-         };
-      });
-      setHistoryList(joined);
-    } catch (error) { console.error("Gagal load history:", error); }
-  }, []); // Empty dependency karena db instance stabil
-
-  // --- useEffect 1: Load Data Master (Classes, Syllabus, History) ---
   useEffect(() => {
     const initMasterData = async () => {
-        // Load Kelas
-        const cls = await db.classes.toArray();
-        setClasses(cls);
-
-        // Load Silabus
         try {
-            const allSyllabus = await db.syllabus.orderBy('meetingOrder').toArray();
-            setSyllabusList(allSyllabus);
+            const [clsData, sylData] = await Promise.all([
+                attendanceService.getClasses(),
+                attendanceService.getSyllabus()
+            ]);
+            setClasses(clsData);
+            setSyllabusList(sylData);
+            await loadHistory();
         } catch (err) { console.error(err); }
-
-        // Load History
-        await loadHistory();
     };
     initMasterData();
   }, [view, loadHistory]);
 
-  // --- useEffect 2: Set Default Class (FIX WARNING) ---
-  // Dipisah agar sessionData.classId bisa masuk dependency tanpa loop
   useEffect(() => {
     if (classes.length > 0 && !sessionData.classId) {
         setSessionData(prev => ({ ...prev, classId: classes[0].id }));
     }
   }, [classes, sessionData.classId]);
 
-
-  // --- 2. LOGIKA FILTER ---
   const filteredHistory = useMemo(() => {
     return historyList.filter(item => {
       const matchClass = filterClassId ? item.classId === parseInt(filterClassId) : true;
@@ -97,123 +84,30 @@ const AbsensiPage = () => {
     });
   }, [historyList, filterClassId, filterTopicId]);
 
-  const getEmptyMessage = () => {
-    if (historyList.length === 0) return "Belum ada riwayat absensi.";
-    return `Tidak ada data ditemukan dengan filter ini.`;
-  };
-
-
-  // --- 3. FITUR EXPORT EXCEL (BARU) ---
   const handleExportExcel = async () => {
     if (!filterClassId) {
-        alert("⚠️ Mohon pilih 'Kelas' pada filter di atas terlebih dahulu.");
+        toast.error("Pilih 'Kelas' dulu di filter atas!"); // Ganti Alert
         return;
     }
-
     setLoading(true);
+    const toastId = toast.loading("Sedang membuat Excel..."); // Loading Toast
+
     try {
         const cId = parseInt(filterClassId);
         const selectedClass = classes.find(c => c.id === cId);
         
-        // A. Tentukan Semester (Ganjil/Genap)
-        const today = new Date();
-        const currentMonth = today.getMonth() + 1;
-        const currentYear = today.getFullYear();
-        
-        let startDate, endDate, semesterName;
-        // Juli - Desember = Ganjil
-        if (currentMonth >= 7) { 
-            semesterName = "GANJIL"; startDate = `${currentYear}-07-01`; endDate = `${currentYear}-12-31`;
-        } else {
-        // Januari - Juni = Genap
-            semesterName = "GENAP"; startDate = `${currentYear}-01-01`; endDate = `${currentYear}-06-30`;
-        }
+        const { db } = await import('../db'); 
+        await downloadAttendanceExcel(cId, selectedClass?.name, db);
 
-        // B. Cari Tanggal Mengajar Aktual (Header Kolom)
-        // Hanya ambil tanggal dimana guru benar-benar mengisi jurnal di kelas ini
-        const journalsInRange = await db.journals
-            .where('classId').equals(cId)
-            .filter(j => j.date >= startDate && j.date <= endDate)
-            .sortBy('date');
-
-        if (journalsInRange.length === 0) {
-            alert(`Belum ada data mengajar untuk Kelas ${selectedClass?.name} di Semester ${semesterName}.`);
-            setLoading(false);
-            return;
-        }
-
-        const dateColumns = journalsInRange.map(j => j.date); // Array Tanggal [2024-07-12, ...]
-        
-        // C. Ambil Data Absensi
-        const attendanceInRange = await db.attendance
-            .where('classId').equals(cId)
-            .filter(a => a.date >= startDate && a.date <= endDate)
-            .toArray();
-
-        // Mapping Cepat: key="studentId_date" -> value=status
-        const attMap = {};
-        attendanceInRange.forEach(a => { attMap[`${a.studentId}_${a.date}`] = a.status; });
-
-        // D. Ambil Siswa
-        const studentList = await db.students.where('classId').equals(cId).sortBy('name');
-
-        // E. Susun Data Excel
-        const excelData = [];
-        studentList.forEach((s, index) => {
-            const row = { No: index + 1, NIS: s.nis, Nama: s.name };
-            
-            let countS = 0, countI = 0, countA = 0; 
-
-            dateColumns.forEach(date => {
-                // Header Tgl: 12/07
-                const dObj = new Date(date);
-                const header = `${dObj.getDate()}/${dObj.getMonth() + 1}`;
-                
-                const status = attMap[`${s.id}_${date}`] || STATUS_ABSENSI.HADIR;
-                
-                let code = '.';
-                if (status === STATUS_ABSENSI.HADIR) code = 'H';
-                else if (status === STATUS_ABSENSI.SAKIT) { code = 'S'; countS++; }
-                else if (status === STATUS_ABSENSI.IZIN)  { code = 'I'; countI++; }
-                else if (status === STATUS_ABSENSI.ALPA)  { code = 'A'; countA++; }
-                else if (status === STATUS_ABSENSI.BOLOS) { code = 'B'; countA++; } // Bolos dihitung A
-
-                row[header] = code;
-            });
-
-            // Kolom Rekap
-            row['S'] = countS;
-            row['I'] = countI;
-            row['A'] = countA; // Termasuk Bolos
-            excelData.push(row);
-        });
-
-        // F. Generate & Download
-        const ws = utils.json_to_sheet(excelData);
-        
-        // Tambah Judul Header
-        utils.sheet_add_aoa(ws, [
-            [`REKAPITULASI ABSENSI SEMESTER ${semesterName} ${currentYear}`],
-            [`Kelas: ${selectedClass?.name}`],
-            [''] // Spasi baris
-        ], { origin: "A1" });
-
-        const wb = utils.book_new();
-        utils.book_append_sheet(wb, ws, "Rekap Absensi");
-        writeFile(wb, `Rekap_Absen_${selectedClass?.name}_${semesterName}.xlsx`);
-
-        alert("✅ File Excel berhasil diunduh!");
-
+        toast.success("Excel berhasil diunduh!", { id: toastId }); // Update Toast Sukses
     } catch (e) {
         console.error(e);
-        alert("Gagal export: " + e.message);
+        toast.error("Gagal export: " + e.message, { id: toastId });
     } finally {
         setLoading(false);
     }
   };
 
-
-  // --- 4. INPUT FLOW (Original) ---
   const openInputPage = async (journal = null) => {
     setLoading(true);
     
@@ -244,10 +138,9 @@ const AbsensiPage = () => {
     });
 
     try {
-        const clsStudents = await db.students.where('classId').equals(parseInt(targetClassId)).sortBy('name');
+        const clsStudents = await attendanceService.getStudentsByClass(targetClassId);
         setStudents(clsStudents);
-
-        const existingRecords = await db.attendance.where({ classId: parseInt(targetClassId), date: targetDate }).toArray();
+        const existingRecords = await attendanceService.getExistingAttendance(targetClassId, targetDate);
 
         const statusObj = {};
         clsStudents.forEach(s => {
@@ -255,16 +148,15 @@ const AbsensiPage = () => {
             statusObj[s.id] = record ? record.status : STATUS_ABSENSI.HADIR;
         });
         setAttendanceMap(statusObj);
-        
         setView('input');
-    } catch (e) { console.error(e); } 
+    } catch (e) { console.error(e); toast.error("Gagal membuka data kelas"); } 
     finally { setLoading(false); }
   };
 
   const handleStartAbsen = () => {
-      if (!sessionData.classId) { alert("Pilih kelas dulu!"); return; }
+      if (!sessionData.classId) { toast.error("Pilih kelas dulu!"); return; }
       if (!sessionData.syllabusId && !sessionData.customTopic) { 
-          alert("Pilih Materi dari dropdown, atau isi Topik Manual jika tidak ada!"); return; 
+          toast.error("Isi topik materi dulu!"); return; 
       }
       openInputPage(); 
   };
@@ -279,56 +171,75 @@ const AbsensiPage = () => {
       setSessionData(prev => ({ ...prev, customTopic: val, syllabusId: val ? '' : prev.syllabusId }));
   };
 
-  const handleSave = async () => {
-      if(!confirm("Simpan Data Absensi?")) return;
+  // --- LOGIC SIMPAN DENGAN MODAL ---
+  const handleSaveClick = () => {
+    confirmAction(
+      "Simpan Absensi?", 
+      `Pastikan data kehadiran untuk tanggal ${sessionData.date} sudah benar.`,
+      processSave, // Callback function jika user klik 'Ya'
+      false // Not Danger
+    );
+  };
+
+  const processSave = async () => {
+      const toastId = toast.loading("Menyimpan data...");
       try {
-          await db.transaction('rw', db.journals, db.attendance, async () => {
-              const journalPayload = {
-                  date: sessionData.date,
-                  classId: parseInt(sessionData.classId),
-                  syllabusId: sessionData.syllabusId ? parseInt(sessionData.syllabusId) : null,
-                  customTopic: sessionData.customTopic
-              };
-              
-              if (sessionData.id) {
-                  await db.journals.update(sessionData.id, journalPayload);
-              } else {
-                  await db.journals.add(journalPayload);
-              }
+          const journalPayload = {
+             id: sessionData.id,
+             date: sessionData.date,
+             classId: sessionData.classId,
+             syllabusId: sessionData.syllabusId,
+             customTopic: sessionData.customTopic
+          };
 
-              await db.attendance.where({ classId: parseInt(sessionData.classId), date: sessionData.date }).delete();
+          const studentRecords = students.map(s => ({
+              studentId: s.id,
+              status: attendanceMap[s.id]
+          }));
 
-              const records = students.map(s => ({
-                  date: sessionData.date,
-                  classId: parseInt(sessionData.classId),
-                  studentId: s.id,
-                  status: attendanceMap[s.id]
-              }));
-              await db.attendance.bulkAdd(records);
-          });
-          alert("✅ Absensi Tersimpan!");
+          await attendanceService.saveAttendance(journalPayload, studentRecords);
+
+          toast.success("Absensi Tersimpan!", { id: toastId });
           setSessionData(prev => ({...prev, syllabusId: '', customTopic: '', id: null}));
           setView('list');
       } catch (error) {
           console.error(error);
-          alert("Gagal menyimpan: " + error.message);
+          toast.error("Gagal menyimpan: " + error.message, { id: toastId });
       }
   };
 
-  const handleDelete = async (e, journal) => {
+  // --- LOGIC HAPUS DENGAN MODAL ---
+  const handleDeleteClick = (e, journal) => {
       e.stopPropagation(); 
-      if(!confirm(`Hapus riwayat absensi tanggal ${journal.date}?`)) return;
+      confirmAction(
+        "Hapus Riwayat?",
+        `Data absensi tanggal ${journal.date} akan dihapus permanen.`,
+        () => processDelete(journal),
+        true // Danger Mode (Merah)
+      );
+  };
+
+  const processDelete = async (journal) => {
       try {
-          await db.transaction('rw', db.journals, db.attendance, async () => {
-              await db.journals.delete(journal.id);
-              await db.attendance.where({ classId: journal.classId, date: journal.date }).delete();
-          });
+          await attendanceService.deleteAttendanceLog(journal.id, journal.classId, journal.date);
+          toast.success("Data berhasil dihapus");
           loadHistory(); 
-      } catch (err) { alert("Gagal hapus: " + err); }
+      } catch (err) { toast.error("Gagal hapus: " + err); }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
+      
+      {/* --- RENDER MODAL --- */}
+      <ConfirmModal 
+        isOpen={modal.isOpen}
+        onClose={() => setModal({...modal, isOpen: false})}
+        onConfirm={modal.onConfirm}
+        title={modal.title}
+        message={modal.message}
+        isDanger={modal.isDanger}
+      />
+
       {/* HEADER */}
       <div className="bg-white p-6 rounded-b-3xl shadow-sm sticky top-0 z-20 mb-6">
         <div className="flex items-center justify-between">
@@ -347,14 +258,11 @@ const AbsensiPage = () => {
                     <p className="text-xs text-slate-500">Jurnal & Kehadiran Siswa</p>
                 </div>
             </div>
-            {/* Tombol Plus (Hanya di List View) */}
             {view === 'list' && (
                 <div className="flex gap-2">
-                    {/* TOMBOL EXPORT EXCEL (Hijau) */}
                     <button 
                         onClick={handleExportExcel}
                         className="p-3 bg-green-100 text-green-700 rounded-2xl shadow-sm hover:bg-green-200 transition-colors"
-                        title="Download Rekap Semester"
                     >
                         <Download size={24} />
                     </button>
@@ -369,7 +277,7 @@ const AbsensiPage = () => {
             )}
         </div>
 
-        {/* --- FILTER SECTION (Hanya di List View) --- */}
+        {/* --- FILTER SECTION --- */}
         {view === 'list' && (
             <div className="mt-6 grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
                 <div className="relative">
@@ -400,7 +308,7 @@ const AbsensiPage = () => {
            <div className="space-y-4">
              {filteredHistory.length === 0 ? (
                  <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
-                     <p className="text-slate-400 font-medium text-sm px-6 leading-relaxed">{getEmptyMessage()}</p>
+                     <p className="text-slate-400 font-medium text-sm px-6 leading-relaxed">Belum ada riwayat absensi.</p>
                  </div>
              ) : (
                  filteredHistory.map(item => (
@@ -411,7 +319,8 @@ const AbsensiPage = () => {
                        </div>
                        <h3 className="font-bold text-slate-800 text-lg leading-tight">{item.topicName}</h3>
                        
-                       <button onClick={(e) => handleDelete(e, item)} className="absolute top-4 right-4 p-2 text-slate-200 hover:text-red-500 transition-colors">
+                       {/* GANTI BUTTON DELETE DENGAN HANDLER BARU */}
+                       <button onClick={(e) => handleDeleteClick(e, item)} className="absolute top-10 right-4 p-2 text-slate-200 hover:text-red-500 transition-colors">
                            <Trash2 size={18} />
                        </button>
                     </div>
@@ -505,7 +414,8 @@ const AbsensiPage = () => {
                 )}
                 
                 <div className="fixed bottom-20 left-6 right-6 max-w-md mx-auto z-30">
-                    <button onClick={handleSave} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-xl flex justify-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all">
+                    {/* GANTI TOMBOL SAVE BIASA DENGAN HANDLER BARU */}
+                    <button onClick={handleSaveClick} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-xl flex justify-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all">
                         <Save/> Simpan Absensi
                     </button>
                 </div>

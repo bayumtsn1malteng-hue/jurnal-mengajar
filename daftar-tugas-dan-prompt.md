@@ -58,6 +58,9 @@ Semua fitur saat ini sudah sesuai dan tidak perlu diubah. Saya hanya menginginka
 10. ~~fix: Profil.Jsx // -- Ubah checkbox menjadi dropdown; terpilih tertulis di bawahnya; di samping mata pelajaran terpilih ada tong sampah untuk menghapus.~~
 11. feat: notifikasi HP. "Saatnya Masuk Kelas"
 12. feat: tampilan awal cantik, selain logo tampilkan 'brand' : The Curious Mind dan tag: 'mewawasi dunia, menerangi minda'
+13. fix: Dashboard.jsx // ubah struktur dashboard, taruh jadwal di atas, lalu menu. pindahkan grid jurnal ke laman sendiri, yaitu statistik. 
+14. ~~fix: navigasi lama.~~ 
+15. fix: menambahkan kemampuan untuk export excel di buku nilai. 
 
 ---
 ## Tambahan dari gemini
