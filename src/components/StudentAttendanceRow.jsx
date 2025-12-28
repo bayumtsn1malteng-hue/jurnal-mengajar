@@ -39,12 +39,12 @@ const StudentAttendanceRow = ({ student, currentStatus, onChange }) => {
 
   return (
     <div className={`flex items-center justify-between p-4 border rounded-2xl mb-3 transition-colors duration-300 ${containerStyle}`}>
-      {/* Info Siswa */}
-      <div className="w-1/3 pr-2">
+      
+      {/* Info Siswa (Hanya Nama, NIS Dihapus) */}
+      <div className="flex-1 pr-2">
         <h3 className={`font-bold text-sm leading-tight break-words ${activeOpt ? 'text-slate-800' : 'text-slate-600'}`}>
           {student.name}
         </h3>
-        <p className="text-[10px] text-slate-400 mt-0.5">{student.nis}</p>
       </div>
 
       {/* Tombol Pilihan */}
@@ -56,7 +56,7 @@ const StudentAttendanceRow = ({ student, currentStatus, onChange }) => {
             className={`
               w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-sm transition-all duration-200
               ${currentStatus === opt.value 
-                ? `${opt.btnClass} ring-4 ${opt.ring} scale-110 z-10` 
+                ? `${opt.btnClass} ring-4 scale-110 z-10` 
                 : 'bg-white text-slate-300 hover:bg-slate-50 border border-slate-100'}
             `}
           >
