@@ -20,6 +20,7 @@
 14. ~~fix: navigasi lama.~~ 
 15. ~~fix: menambahkan kemampuan untuk export excel di buku nilai. ~~
 16. [Bila memungkinkan, menyediakan tutorial aplikasi bagi pengguna baru](tutorial.md)
+17. Mengganti fitur alert di Profil menjadi toast atau yang lain, yang lebih ramah pengguna. Ini berlaku juga untuk semua halaman.
 
 ---
 ## Tambahan dari gemini
