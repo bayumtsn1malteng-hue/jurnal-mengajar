@@ -1,42 +1,107 @@
-import { Outlet, NavLink } from 'react-router-dom';
-import { Home, BookOpen, User } from 'lucide-react';
+// src/layouts/MainLayout.jsx
+import React from 'react';
+import { Outlet, Link, useLocation } from 'react-router-dom';
+import { 
+  Home, ClipboardCheck, BookOpen, ChartNoAxesColumn, User 
+} from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
+
+// --- IMPORT HOOK ---
+import { useScheduleNotification } from '../hooks/useScheduleNotification';
 
 const MainLayout = () => {
+  // --- AKTIFKAN SISTEM NOTIFIKASI ---
+  useScheduleNotification(); 
+
+  const location = useLocation();
+  const isActive = (path) => location.pathname === path;
+
+  // ... (SISA KODE SAMA SEPERTI SEBELUMNYA) ...
+  // Konfigurasi Menu
+  const menus = [
+    { 
+      path: '/', 
+      icon: <Home size={22} />, 
+      label: 'Beranda' 
+    },
+    { 
+      path: '/absensi', 
+      icon: <ClipboardCheck size={22} />, 
+      label: 'Absensi' 
+    },
+    { 
+      path: '/jurnal', 
+      icon: <BookOpen size={28} />, 
+      label: 'Jurnal',
+      isFloating: true 
+    },
+    { 
+      path: '/nilai', 
+      icon: <ChartNoAxesColumn size={22} />, 
+      label: 'Nilai' 
+    }, 
+    { 
+      path: '/profil', 
+      icon: <User size={22} />, 
+      label: 'Akun' 
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-800">
-      {/* Area Konten */}
-      <div className="max-w-md mx-auto min-h-screen bg-white sm:shadow-xl sm:border-x sm:border-slate-100">
+    <div className="flex flex-col min-h-screen bg-slate-50 font-sans">
+      <Toaster position="top-center" reverseOrder={false} />
+      <div className="flex-1 pb-24"> 
         <Outlet />
       </div>
 
-      {/* Navigasi Bawah Mengambang (Glass Effect) */}
-      <div className="fixed bottom-0 left-0 right-0 flex justify-center z-50 pointer-events-none">
-        <div className="bg-white/90 backdrop-blur-md border-t border-slate-200/60 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] w-full max-w-md pointer-events-auto pb-safe">
-          <div className="flex justify-around items-center px-6 py-4">
-            
-            <NavLink to="/" className={({ isActive }) => 
-                `flex flex-col items-center gap-1.5 transition-colors duration-300 ${isActive ? 'text-teal-600' : 'text-slate-400 hover:text-slate-500'}`
-            }>
-              <Home strokeWidth={2.5} size={22} />
-              {/* Titik indikator aktif */}
-              <span className="text-[10px] font-semibold tracking-wide">Beranda</span>
-            </NavLink>
-
-            <NavLink to="/jurnal" className={({ isActive }) => 
-                `flex flex-col items-center gap-1.5 transition-colors duration-300 ${isActive ? 'text-teal-600' : 'text-slate-400 hover:text-slate-500'}`
-            }>
-              <BookOpen strokeWidth={2.5} size={22} />
-              <span className="text-[10px] font-semibold tracking-wide">Jurnal</span>
-            </NavLink>
-
-            <NavLink to="/profil" className={({ isActive }) => 
-                `flex flex-col items-center gap-1.5 transition-colors duration-300 ${isActive ? 'text-teal-600' : 'text-slate-400 hover:text-slate-500'}`
-            }>
-              <User strokeWidth={2.5} size={22} />
-              <span className="text-[10px] font-semibold tracking-wide">Profil</span>
-            </NavLink>
-
-          </div>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 rounded-t-2xl">
+        <div className="flex justify-between items-end px-2 pb-2 h-[70px]">
+           {menus.map((menu) => {
+             if (menu.isFloating) {
+               return (
+                 <div key={menu.path} className="relative -top-6 mx-2">
+                   <Link 
+                     to={menu.path} 
+                     className={`
+                        flex flex-col items-center justify-center w-16 h-16 rounded-full shadow-xl shadow-indigo-200 border-4 border-slate-50 transition-all transform active:scale-95
+                        ${isActive(menu.path) 
+                          ? 'bg-indigo-600 text-white ring-2 ring-indigo-200' 
+                          : 'bg-indigo-500 text-white' 
+                        }
+                     `}
+                   >
+                     {menu.icon}
+                   </Link>
+                   <span className="text-[10px] font-bold text-slate-500 absolute -bottom-6 w-full text-center">
+                     {menu.label}
+                   </span>
+                 </div>
+               );
+             }
+             return (
+               <Link 
+                 key={menu.path} 
+                 to={menu.path} 
+                 className={`
+                    flex flex-col items-center justify-center w-full py-2 rounded-xl transition-colors duration-300
+                    ${isActive(menu.path) 
+                      ? 'text-indigo-600' 
+                      : 'text-slate-400 hover:text-slate-600'
+                    }
+                 `}
+               >
+                 <div className={`mb-1 transition-transform ${isActive(menu.path) ? '-translate-y-1' : ''}`}>
+                    {menu.icon}
+                 </div>
+                 <span className={`text-[10px] font-medium ${isActive(menu.path) ? 'font-bold' : ''}`}>
+                    {menu.label}
+                 </span>
+                 {isActive(menu.path) && (
+                    <div className="w-1 h-1 bg-indigo-600 rounded-full mt-1 animate-in zoom-in" />
+                 )}
+               </Link>
+             );
+           })}
         </div>
       </div>
     </div>
