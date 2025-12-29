@@ -2,7 +2,7 @@ Lihat daftar tugas : [DAFTAR TUGAS](daftar-tugas.md)
 
 # PERUBAHAN YANG DIPERLUKAN DI HALAMAN DASHBOARD (Dashboard.jsx)
 
-1. Restrukturasi UI: 
+1.  <s> <p>Restrukturasi UI Dashboard: 
     a. Grid yang menampilkan Jumlah Jurnal dan Siswa Aktif sebaiknya dipindahkan ke laman sendiri. Beri laman ini nama "Statistik". Laman statistik akan memuat data seperti jumlah kelas yang di ajar, jumlah jurnal, dan siswa aktif. data lain mungkin akan menyusul.
     b. Sebagai gantinya, naikkan Jadwal ke bagian paling atas di susul dengan menu.
     c. Bagian menu. Urutan bagian menu dimulai dari bagian perencanaan hingga tindak lanjut:
@@ -16,5 +16,5 @@ Lihat daftar tugas : [DAFTAR TUGAS](daftar-tugas.md)
         - Sumber Inspirasi // sumber tulisan, video, dsb yang dimanfaatkan untuk pengembangan keprofesionalan berkelanjutan.
         - Guru AI // fitur untuk membantu guru memanfaatkan AI 
     d. Bagian menu tidak harus diatur dengan urutan, bisa juga dengan grid.
-    e. Penamaan menu tidak kaku seperti di atas, yang jelas dia harus ringkas dan diberi sedikit keterangan.
+    e. Penamaan menu tidak kaku seperti di atas, yang jelas dia harus ringkas dan diberi sedikit keterangan. <p></s>
     
