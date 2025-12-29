@@ -11,6 +11,9 @@ import AbsensiPage from './pages/AbsensiPage';
 import NilaiPage from './pages/NilaiPage';
 import PengaturanPage from './pages/PengaturanPage';
 import JurnalPage from './pages/JurnalPage';
+import StatistikPage from './pages/StatistikPage';
+
+
 function App() {
   return (
     <BrowserRouter>
@@ -29,6 +32,7 @@ function App() {
           <Route path="/absensi" element={<AbsensiPage />}/>
           <Route path="/rencana-ajar" element={<RencanaAjar />}/>
           <Route path="/profil" element={<Profil />} />
+          <Route path="/statistik" element={<StatistikPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
