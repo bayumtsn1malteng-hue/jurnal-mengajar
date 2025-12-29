@@ -9,6 +9,10 @@ import Profil from './pages/Profil';
 import RencanaAjar from './pages/RencanaAjar';
 import AbsensiPage from './pages/AbsensiPage';
 import NilaiPage from './pages/NilaiPage';
+import PengaturanPage from './pages/PengaturanPage';
+import JurnalPage from './pages/JurnalPage';
+import StatistikPage from './pages/StatistikPage';
+
 
 function App() {
   return (
@@ -23,10 +27,12 @@ function App() {
           <Route path= "/kelas" element={<Kelas />}/>
           <Route path= "/kelas/:id" element={<KelasDetail />} />
           <Route path= "/nilai" element={<NilaiPage />} />
-          <Route path="/jurnal" element={<div className="p-6">Halaman Jurnal (Segera)</div>} />
+          <Route path="/pengaturan" element={<PengaturanPage />} />
+          <Route path="/jurnal" element={<JurnalPage />} />
           <Route path="/absensi" element={<AbsensiPage />}/>
           <Route path="/rencana-ajar" element={<RencanaAjar />}/>
           <Route path="/profil" element={<Profil />} />
+          <Route path="/statistik" element={<StatistikPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
