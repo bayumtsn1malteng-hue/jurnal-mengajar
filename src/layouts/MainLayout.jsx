@@ -2,18 +2,21 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { 
-  Home, 
-  ClipboardCheck, // Icon baru untuk Absensi
-  BookOpen, 
-  ChartNoAxesColumn, // Icon baru untuk Nilai (Grafik)
-  User 
+  Home, ClipboardCheck, BookOpen, ChartNoAxesColumn, User 
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
+// --- IMPORT HOOK ---
+import { useScheduleNotification } from '../hooks/useScheduleNotification';
+
 const MainLayout = () => {
+  // --- AKTIFKAN SISTEM NOTIFIKASI ---
+  useScheduleNotification(); 
+
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
+  // ... (SISA KODE SAMA SEPERTI SEBELUMNYA) ...
   // Konfigurasi Menu
   const menus = [
     { 
@@ -22,18 +25,18 @@ const MainLayout = () => {
       label: 'Beranda' 
     },
     { 
-      path: '/absensi', // GANTI: Kelas -> Absensi
+      path: '/absensi', 
       icon: <ClipboardCheck size={22} />, 
       label: 'Absensi' 
     },
     { 
       path: '/jurnal', 
-      icon: <BookOpen size={28} />, // Icon lebih besar
+      icon: <BookOpen size={28} />, 
       label: 'Jurnal',
-      isFloating: true // Penanda khusus untuk tombol tengah
+      isFloating: true 
     },
     { 
-      path: '/nilai', // GANTI: Ajar -> Nilai
+      path: '/nilai', 
       icon: <ChartNoAxesColumn size={22} />, 
       label: 'Nilai' 
     }, 
@@ -46,20 +49,14 @@ const MainLayout = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 font-sans">
-      {/* Toast Notification (Sprint 2) */}
       <Toaster position="top-center" reverseOrder={false} />
-
-      {/* Konten Utama */}
       <div className="flex-1 pb-24"> 
         <Outlet />
       </div>
 
-      {/* Bottom Navigation (Modern Floating Style) */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 rounded-t-2xl">
         <div className="flex justify-between items-end px-2 pb-2 h-[70px]">
-           
            {menus.map((menu) => {
-             // RENDERING KHUSUS UNTUK TOMBOL TENGAH (JURNAL)
              if (menu.isFloating) {
                return (
                  <div key={menu.path} className="relative -top-6 mx-2">
@@ -68,8 +65,8 @@ const MainLayout = () => {
                      className={`
                         flex flex-col items-center justify-center w-16 h-16 rounded-full shadow-xl shadow-indigo-200 border-4 border-slate-50 transition-all transform active:scale-95
                         ${isActive(menu.path) 
-                          ? 'bg-indigo-600 text-white ring-2 ring-indigo-200' // Aktif
-                          : 'bg-indigo-500 text-white' // Tidak Aktif (Tetap berwarna solid)
+                          ? 'bg-indigo-600 text-white ring-2 ring-indigo-200' 
+                          : 'bg-indigo-500 text-white' 
                         }
                      `}
                    >
@@ -81,8 +78,6 @@ const MainLayout = () => {
                  </div>
                );
              }
-
-             // RENDERING UNTUK TOMBOL MENU BIASA
              return (
                <Link 
                  key={menu.path} 
@@ -101,15 +96,12 @@ const MainLayout = () => {
                  <span className={`text-[10px] font-medium ${isActive(menu.path) ? 'font-bold' : ''}`}>
                     {menu.label}
                  </span>
-                 
-                 {/* Indikator Titik kecil jika aktif */}
                  {isActive(menu.path) && (
                     <div className="w-1 h-1 bg-indigo-600 rounded-full mt-1 animate-in zoom-in" />
                  )}
                </Link>
              );
            })}
-
         </div>
       </div>
     </div>

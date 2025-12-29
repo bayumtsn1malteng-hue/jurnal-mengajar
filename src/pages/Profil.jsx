@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { User, School, Book, Save, Trash2, Plus, X, Clock, Calendar } from 'lucide-react';
+import toast from 'react-hot-toast';
+import ConfirmModal from '../components/ConfirmModal'; // Import Modal Konfirmasi
 
 // --- DATA KONSTANTA ---
 const SUBJECT_OPTIONS = [
@@ -44,8 +46,8 @@ const Profil = () => {
   const [mySubjects, setMySubjects] = useState([]);
   
   // State Jadwal
-  const [schedules, setSchedules] = useState([]); // Array jadwal
-  const [classList, setClassList] = useState([]); // Untuk dropdown kelas
+  const [schedules, setSchedules] = useState([]); 
+  const [classList, setClassList] = useState([]); 
   
   // State Modal Jadwal
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -54,6 +56,12 @@ const Profil = () => {
     day: 'Senin',
     startPeriod: 'I',
     endPeriod: 'II'
+  });
+
+  // State Modal Hapus (Pengganti window.confirm)
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    id: null
   });
 
   // --- 1. LOAD DATA ---
@@ -88,14 +96,14 @@ const Profil = () => {
         { key: 'teacherName', value: teacherName },
         { key: 'schoolName', value: schoolName }
       ]);
-      alert("✅ Profil berhasil disimpan!");
+      toast.success("Profil berhasil disimpan!"); // Ganti Alert
     } catch (error) {
       console.error(error);
-      alert("Gagal menyimpan profil.");
+      toast.error("Gagal menyimpan profil.");
     }
   };
 
-  // --- 3. HANDLER MATA PELAJARAN (Dropdown Logic) ---
+  // --- 3. HANDLER MATA PELAJARAN ---
   const handleAddSubject = async (e) => {
     const subject = e.target.value;
     if (!subject) return;
@@ -103,10 +111,9 @@ const Profil = () => {
     if (!mySubjects.includes(subject)) {
       const updated = [...mySubjects, subject];
       setMySubjects(updated);
-      // Auto save ke DB
       await db.settings.put({ key: 'mySubjects', value: updated });
+      toast.success(`Mapel ${subject} ditambahkan`);
     }
-    // Reset dropdown ke default
     e.target.value = ""; 
   };
 
@@ -114,6 +121,7 @@ const Profil = () => {
     const updated = mySubjects.filter(s => s !== subjectToRemove);
     setMySubjects(updated);
     await db.settings.put({ key: 'mySubjects', value: updated });
+    toast.success("Mapel dihapus");
   };
 
   // --- 4. HANDLER JADWAL ---
@@ -123,15 +131,14 @@ const Profil = () => {
 
   const handleSaveSchedule = async () => {
     if (!newSchedule.classId) {
-        alert("Mohon pilih kelas terlebih dahulu (buat data kelas jika kosong).");
+        toast.error("Mohon pilih kelas terlebih dahulu."); // Ganti Alert
         return;
     }
 
-    // Cari nama kelas untuk disimpan (agar mudah ditampilkan)
     const selectedClass = classList.find(c => c.id === parseInt(newSchedule.classId));
     
     const scheduleItem = {
-      id: Date.now(), // ID unik sederhana
+      id: Date.now(),
       classId: parseInt(newSchedule.classId),
       className: selectedClass?.name || '?',
       day: newSchedule.day,
@@ -143,18 +150,38 @@ const Profil = () => {
     setSchedules(updatedSchedules);
     await db.settings.put({ key: 'mySchedule', value: updatedSchedules });
     
-    setIsScheduleModalOpen(false); // Tutup Modal
+    setIsScheduleModalOpen(false);
+    toast.success("Jadwal berhasil ditambahkan!");
   };
 
-  const handleRemoveSchedule = async (idToRemove) => {
-    if(!confirm("Hapus jadwal ini?")) return;
-    const updated = schedules.filter(s => s.id !== idToRemove);
-    setSchedules(updated);
-    await db.settings.put({ key: 'mySchedule', value: updated });
+  // Trigger Modal Hapus
+  const confirmRemoveSchedule = (id) => {
+    setDeleteModal({ isOpen: true, id });
+  };
+
+  // Eksekusi Hapus (Dipanggil Modal)
+  const executeRemoveSchedule = async () => {
+    if (deleteModal.id) {
+        const updated = schedules.filter(s => s.id !== deleteModal.id);
+        setSchedules(updated);
+        await db.settings.put({ key: 'mySchedule', value: updated });
+        toast.success("Jadwal dihapus");
+        setDeleteModal({ isOpen: false, id: null });
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 relative">
+      {/* MODAL KONFIRMASI */}
+      <ConfirmModal 
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
+        onConfirm={executeRemoveSchedule}
+        title="Hapus Jadwal?"
+        message="Anda yakin ingin menghapus jadwal mata pelajaran ini?"
+        isDanger={true}
+      />
+
       <h1 className="text-2xl font-bold text-slate-800 mb-6">Profil & Pengaturan</h1>
 
       <div className="space-y-6">
@@ -189,19 +216,18 @@ const Profil = () => {
           </div>
           <button 
             onClick={handleSaveProfile}
-            className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 flex justify-center gap-2"
+            className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 flex justify-center gap-2 shadow-lg shadow-indigo-200"
           >
             <Save size={18} /> Simpan Identitas
           </button>
         </div>
 
-        {/* SECTION 2: MATA PELAJARAN (REVISI DROPDOWN) */}
+        {/* SECTION 2: MATA PELAJARAN */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <h2 className="font-bold text-slate-700 flex items-center gap-2 mb-4">
             <Book size={18} /> Mata Pelajaran
           </h2>
           
-          {/* Dropdown Pemilihan */}
           <div className="relative mb-4">
             <select 
                 onChange={handleAddSubject}
@@ -219,7 +245,6 @@ const Profil = () => {
             </div>
           </div>
 
-          {/* List Mata Pelajaran Terpilih */}
           <div className="space-y-2">
             {mySubjects.length === 0 && (
                 <p className="text-sm text-slate-400 italic text-center py-2">Belum ada mapel dipilih.</p>
@@ -238,13 +263,12 @@ const Profil = () => {
           </div>
         </div>
 
-        {/* SECTION 3: JADWAL PELAJARAN (FITUR BARU) */}
+        {/* SECTION 3: JADWAL PELAJARAN */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <h2 className="font-bold text-slate-700 flex items-center gap-2 mb-4">
             <Clock size={18} /> Jadwal Mengajar
           </h2>
 
-          {/* List Jadwal */}
           <div className="space-y-3 mb-6">
             {schedules.length === 0 ? (
                 <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -252,7 +276,7 @@ const Profil = () => {
                 </div>
             ) : (
                 schedules
-                .sort((a,b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day)) // Sort berdasarkan hari
+                .sort((a,b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day))
                 .map((item) => (
                     <div key={item.id} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
                         <div className="flex items-center gap-3">
@@ -266,7 +290,7 @@ const Profil = () => {
                             </div>
                         </div>
                         <button 
-                            onClick={() => handleRemoveSchedule(item.id)}
+                            onClick={() => confirmRemoveSchedule(item.id)}
                             className="p-2 text-slate-300 hover:text-rose-500 transition-colors"
                         >
                             <Trash2 size={18} />
@@ -276,7 +300,6 @@ const Profil = () => {
             )}
           </div>
 
-          {/* Tombol Tambah Jadwal */}
           <button 
             onClick={() => setIsScheduleModalOpen(true)}
             className="w-full py-3 border-2 border-dashed border-indigo-200 text-indigo-600 bg-indigo-50 rounded-xl font-bold hover:bg-indigo-100 flex justify-center items-center gap-2"

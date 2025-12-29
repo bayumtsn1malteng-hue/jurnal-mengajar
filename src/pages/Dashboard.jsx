@@ -1,14 +1,15 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { 
-  Calendar, Users, Book, Settings, ChevronRight, 
-  ClipboardCheck, GraduationCap, Clock, Coffee 
-} from 'lucide-react'; // Tambahkan 'Coffee'
+  Users, BookOpen, Settings, Activity, TrendingUp, 
+  BarChart2, Lightbulb, Youtube, Bot, ChevronRight,
+  Calendar, Clock, Coffee, CheckCircle, AlertCircle
+} from 'lucide-react';
 
-// --- DEFINISI JAM PELAJARAN (JANGAN DIUBAH) ---
+// --- 1. DEFINISI JAM PELAJARAN (LOGIKA LAMA) ---
 const TIME_MAPPING = {
   NORMAL: {
     'I':   { start: '07:30', end: '08:10' },
@@ -31,38 +32,101 @@ const TIME_MAPPING = {
 };
 
 const Dashboard = () => {
-  // 1. Waktu Real-time
-  const [now, setNow] = useState(new Date());
+  const navigate = useNavigate();
+  const [userName, setUserName] = useState('Cikgu');
+
+  // Lazy Init Date (Solusi Error setState)
+  const [dateInfo] = useState(() => {
+    const now = new Date();
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    return {
+      fullDate: now.toLocaleDateString('id-ID', options),
+      dayName: now.toLocaleDateString('id-ID', { weekday: 'long' }),
+      isoDate: now.toISOString().split('T')[0]
+    };
+  });
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60000); 
+    const loadSettings = async () => {
+      try {
+        const setting = await db.settings.get('teacherName');
+        if (setting && setting.value) setUserName(setting.value);
+      } catch (e) { console.error(e); }
+    };
+    loadSettings();
+  }, []);
+
+  // --- MENU ITEMS (VISUAL BARU) ---
+  const menuItems = [
+    { id: 'kelas', label: 'Data Kelas & Siswa', icon: <Users size={24} />, path: '/kelas', color: 'bg-blue-100 text-blue-600' },
+    { id: 'rencana', label: 'Rencana Pembelajaran', icon: <BookOpen size={24} />, path: '/rencana-ajar', color: 'bg-indigo-100 text-indigo-600' },
+    { id: 'monitoring', label: 'Monitoring Perilaku', icon: <Activity size={24} />, path: '/monitoring', color: 'bg-rose-100 text-rose-600', isComingSoon: true },
+    { id: 'perkembangan_kelas', label: 'Perkembangan Kelas', icon: <TrendingUp size={24} />, path: '/perkembangan-kelas', color: 'bg-teal-100 text-teal-600', isComingSoon: true },
+    { id: 'perkembangan_siswa', label: 'Perkembangan Siswa', icon: <Users size={24} />, path: '/perkembangan-siswa', color: 'bg-emerald-100 text-emerald-600', isComingSoon: true },
+    { id: 'statistik', label: 'Statistik Data', icon: <BarChart2 size={24} />, path: '/statistik', color: 'bg-amber-100 text-amber-600' },
+    { id: 'ide', label: 'Ide Mengajar', icon: <Lightbulb size={24} />, path: '/ide', color: 'bg-yellow-100 text-yellow-600', isComingSoon: true },
+    { id: 'inspirasi', label: 'Sumber Inspirasi', icon: <Youtube size={24} />, path: '/inspirasi', color: 'bg-red-100 text-red-600', isComingSoon: true },
+    { id: 'guru_ai', label: 'Guru AI', icon: <Bot size={24} />, path: '/ai', color: 'bg-purple-100 text-purple-600', isComingSoon: true },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-24">
+      {/* HEADER AREA */}
+      <div className="bg-white p-6 rounded-b-3xl shadow-sm mb-6">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <p className="text-slate-500 text-xs mb-1">{dateInfo.fullDate}</p>
+            <h1 className="text-2xl font-bold text-slate-800">Halo, {userName}</h1>
+          </div>
+          <button onClick={() => navigate('/pengaturan')} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition">
+            <Settings size={20} />
+          </button>
+        </div>
+
+        {/* JADWAL SECTION (LOGIKA LAMA + TAMPILAN BARU) */}
+        <JadwalSection dayName={dateInfo.dayName} todayISO={dateInfo.isoDate} />
+      </div>
+
+      {/* MENU GRID */}
+      <div className="px-6">
+        <h2 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">Menu Utama</h2>
+        <div className="grid grid-cols-2 gap-4">
+          {menuItems.map((item) => (
+            <div 
+              key={item.id}
+              onClick={() => !item.isComingSoon && navigate(item.path)}
+              className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all active:scale-95 cursor-pointer flex flex-col items-center text-center gap-3 relative overflow-hidden"
+            >
+              {item.isComingSoon && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-slate-200" />}
+              <div className={`p-3 rounded-xl ${item.color}`}>{item.icon}</div>
+              <span className="text-xs font-bold text-slate-700 leading-tight">{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- KOMPONEN JADWAL CERDAS (LOGIKA LAMA DIKEMBALIKAN) ---
+const JadwalSection = ({ dayName, todayISO }) => {
+  const [now, setNow] = useState(new Date());
+
+  // Update waktu tiap menit (untuk status Sedang Mengajar)
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  const todayDate = new Date();
-  const todayString = todayDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
-  const dayName = todayDate.toLocaleDateString('id-ID', { weekday: 'long' }); // Senin, Selasa... Minggu
-  const todayISO = todayDate.toISOString().split('T')[0];
-
-  // --- STATISTIK ---
-  const studentCount = useLiveQuery(() => db.students.count()) || 0;
-  const journalCount = useLiveQuery(() => db.journals.count()) || 0;
-
-  // --- QUERY NAMA GURU ---
-  const teacherName = useLiveQuery(async () => {
-    const profile = await db.settings.get('teacherName');
-    return profile?.value || 'Cikgu';
-  }, []) || 'Cikgu';
-  const greetingName = teacherName.split(' ')[0];
-
-  // --- LOGIKA UTAMA: JADWAL CERDAS ---
+  // QUERY JADWAL & STATUS (LOGIKA LAMA)
   const smartSchedule = useLiveQuery(async () => {
     const settings = await db.settings.get('mySchedule');
     const allSchedules = settings?.value || [];
     
-    // Filter Jadwal HANYA Hari Ini
+    // 1. Filter hari ini
     const todaySchedules = allSchedules.filter(s => s.day === dayName);
 
+    // 2. Hitung Status & Waktu
     const enriched = await Promise.all(todaySchedules.map(async (item) => {
       const isFriday = dayName === 'Jumat';
       const map = isFriday ? TIME_MAPPING.JUMAT : TIME_MAPPING.NORMAL;
@@ -73,198 +137,126 @@ const Dashboard = () => {
       const startTime = new Date(`${todayISO}T${startTimeStr}:00`);
       const endTime = new Date(`${todayISO}T${endTimeStr}:00`);
       
+      // Cek apakah sudah absen / nilai
       const journalExists = await db.journals.where({ date: todayISO, classId: item.classId }).count() > 0;
-      const assessmentExists = await db.assessments_meta.where({ date: todayISO, classId: item.classId }).count() > 0;
-
-      let baseStatus = '';
-      let colorClass = '';
       
-      if (now < startTime) {
-        baseStatus = 'Belum Mengajar';
-        colorClass = 'text-slate-400 bg-slate-100';
-      } else if (now >= startTime && now <= endTime) {
-        baseStatus = 'Sedang Mengajar';
-        colorClass = 'text-blue-600 bg-blue-50 border-blue-200 animate-pulse';
-      } else {
-        baseStatus = 'Selesai';
-        colorClass = 'text-green-600 bg-green-50 border-green-200';
-      }
+      let status = 'upcoming'; // upcoming, active, done
+      if (now < startTime) status = 'upcoming';
+      else if (now >= startTime && now <= endTime) status = 'active';
+      else status = 'done';
 
-      return {
-        ...item,
-        startTimeStr,
-        endTimeStr,
-        isJournalDone: journalExists,
-        isAssessmentDone: assessmentExists,
-        baseStatus,
-        colorClass
-      };
+      return { ...item, startTimeStr, endTimeStr, status, isJournalDone: journalExists };
     }));
 
+    // Sort berdasarkan jam
     return enriched.sort((a, b) => a.startTimeStr.localeCompare(b.startTimeStr));
-  }, [now]) || [];
+  }, [now, dayName, todayISO]) || [];
 
-  
-  // --- HELPER RENDER STATUS ---
-  const renderStatusBadge = (item) => {
-    if (item.baseStatus === 'Belum Mengajar') {
-      return <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${item.colorClass}`}>{item.baseStatus}</span>;
-    }
+  // --- RENDERING TAMPILAN BARU ---
 
-    let details = [];
-    if (item.isJournalDone) details.push('Absen ✅');
-    if (item.isAssessmentDone) details.push('Latihan ✅');
-
+  // KASUS 1: HARI MINGGU (Tampilan Libur Cantik)
+  if (dayName === 'Minggu') {
     return (
-        <div className={`flex flex-col items-start px-3 py-1.5 rounded-lg border ${item.colorClass}`}>
-            <span className="text-[10px] font-bold uppercase tracking-wide">
-                {item.baseStatus}
-            </span>
-            {(details.length > 0 || item.baseStatus === 'Sedang Mengajar') && (
-                <span className="text-[10px] font-semibold mt-0.5">
-                    {details.length > 0 ? details.join(' & ') : '(Belum input data)'}
-                </span>
-            )}
-        </div>
-    );
-  };
-
-  return (
-    <div className="p-6 space-y-8 max-w-md mx-auto pb-24">
-      
-      {/* HEADER */}
-      <header>
-        <p className="text-slate-400 text-sm font-medium mb-1">{todayString}</p>
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
-          Halo, <span className="text-teal-600">{greetingName}!</span> 👋
-        </h1>
-        <p className="text-slate-500 mt-2 text-sm leading-relaxed">
-          Siap mencatat perkembangan siswa hari ini?
-        </p>
-      </header>
-
-      {/* STATISTIK */}
-      <section className="grid grid-cols-2 gap-4">
-        <div className="bg-teal-50/50 p-5 rounded-3xl border border-teal-100/50 flex flex-col justify-between h-32 relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 bg-teal-100 w-20 h-20 rounded-full opacity-50 group-hover:scale-110 transition-transform"></div>
-          <Book className="text-teal-600 relative z-10" size={24} />
-          <div className="relative z-10">
-            <p className="text-2xl font-bold text-slate-800">{journalCount}</p>
-            <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider mt-1">Total Jurnal</p>
-          </div>
-        </div>
-        <div className="bg-indigo-50/50 p-5 rounded-3xl border border-indigo-100/50 flex flex-col justify-between h-32 relative overflow-hidden group">
-           <div className="absolute -right-4 -top-4 bg-indigo-100 w-20 h-20 rounded-full opacity-50 group-hover:scale-110 transition-transform"></div>
-          <Users className="text-indigo-600 relative z-10" size={24} />
-          <div className="relative z-10">
-             <p className="text-2xl font-bold text-slate-800">{studentCount}</p>
-             <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mt-1">Siswa Aktif</p>
-          </div>
-        </div>
-      </section>
-
-      {/* MENU UTAMA */}
-      <section className="mt-2">
-        <h2 className="font-bold text-slate-800 mb-3 text-lg">Menu Utama</h2>
-        <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-100 space-y-1">
-          <Link to="/absensi" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
-            <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-rose-600"><ClipboardCheck size={20} /></div>
-            <div className="flex-1"><h3 className="font-bold text-slate-700 text-sm">Absensi Siswa</h3><p className="text-xs text-slate-400">Catat kehadiran harian</p></div>
-            <ChevronRight size={18} className="text-slate-300" />
-          </Link>
-          <Link to="/nilai" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
-            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600"><GraduationCap size={20} /></div>
-            <div className="flex-1"><h3 className="font-bold text-slate-700 text-sm">Buku Nilai</h3><p className="text-xs text-slate-400">Input nilai UH, Tugas, UTS</p></div>
-            <ChevronRight size={18} className="text-slate-300" />
-          </Link>
-          <Link to="/kelas" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
-            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600"><Users size={20} /></div>
-            <div className="flex-1"><h3 className="font-bold text-slate-700 text-sm">Data Kelas & Siswa</h3><p className="text-xs text-slate-400">Input siswa, import Excel</p></div>
-            <ChevronRight size={18} className="text-slate-300" />
-          </Link>
-          <Link to="/rencana-ajar" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
-            <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-600"><Book size={20} /></div>
-            <div className="flex-1"><h3 className="font-bold text-slate-700 text-sm">Bank Materi (RPP)</h3><p className="text-xs text-slate-400">Atur silabus & tujuan</p></div>
-            <ChevronRight size={18} className="text-slate-300" />
-          </Link>
-          <Link to="/pengaturan" className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
-              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600"><Settings size={20} /></div>
-              <div className="flex-1"><h3 className="font-bold text-slate-700 text-sm">Pengaturan & Backup</h3><p className="text-xs text-slate-400">Amankan data Anda</p></div>
-              <ChevronRight size={18} className="text-slate-300" />
-          </Link>
-        </div>
-      </section>
-
-      {/* JADWAL MENGAJAR HARI INI */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-                <h2 className="font-bold text-slate-800">Jadwal Hari Ini</h2>
-                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase ${dayName === 'Minggu' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                    {dayName}
-                </span>
-            </div>
-            {smartSchedule.length > 0 && (
-                <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                    <Clock size={12}/>
-                    <span>{now.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}</span>
-                </div>
-            )}
-        </div>
+      <div className="bg-orange-500 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+        {/* Dekorasi Background */}
+        <div className="absolute -right-6 -top-6 w-32 h-32 bg-white opacity-20 rounded-full blur-3xl"></div>
+        <div className="absolute -left-6 -bottom-6 w-24 h-24 bg-orange-300 opacity-30 rounded-full blur-2xl"></div>
         
-        {smartSchedule.length === 0 ? (
-            /* --- LOGIKA BARU: TAMPILAN KOSONG VS MINGGU --- */
-            dayName === 'Minggu' ? (
-                // 1. Tampilan Khusus Hari Minggu
-                <div className="bg-orange-50 border border-orange-100 p-8 rounded-3xl text-center shadow-sm">
-                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3 text-orange-500">
-                        <Coffee size={24} />
-                    </div>
-                    <p className="text-slate-700 font-bold">Hari Minggu!</p>
-                    <p className="text-slate-500 text-xs mt-1">Tidak ada jadwal, nikmati libur Anda.</p>
-                </div>
-            ) : (
-                // 2. Tampilan Kosong Biasa (Hari Kerja tapi belum isi jadwal)
-                <div className="bg-white border border-slate-100 p-8 rounded-3xl text-center shadow-sm">
-                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
-                        <Calendar size={20} />
-                    </div>
-                    <p className="text-slate-600 font-medium">Tidak ada jadwal</p>
-                    <p className="text-slate-400 text-xs mt-1">Pastikan Anda sudah mengatur jadwal di menu Profil.</p>
-                    <Link to="/profil" className="inline-block mt-4 text-xs font-bold text-indigo-600 hover:underline">
-                        Atur Jadwal Disini &rarr;
-                    </Link>
-                </div>
-            )
-        ) : (
-            // 3. Tampilan Ada Jadwal
-            <div className="space-y-3">
-                {smartSchedule.map(item => (
-                    <div key={item.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex gap-4">
-                        {/* Waktu */}
-                        <div className="flex flex-col items-center justify-center w-14 shrink-0 border-r border-slate-100 pr-4">
-                            <span className="text-xs font-bold text-slate-800">{item.startTimeStr}</span>
-                            <span className="text-[10px] text-slate-400 my-1">-</span>
-                            <span className="text-xs font-bold text-slate-400">{item.endTimeStr}</span>
-                        </div>
-
-                        {/* Info Kelas & Status */}
-                        <div className="flex-1 min-w-0 flex flex-col justify-center">
-                            <div className="flex justify-between items-start mb-1">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 text-sm truncate">{item.className}</h3>
-                                    <p className="text-xs text-slate-500">Jam Ke {item.startPeriod} - {item.endPeriod}</p>
-                                </div>
-                                {/* STATUS BADGE */}
-                                {renderStatusBadge(item)}
-                            </div>
-                        </div>
-                    </div>
-                ))}
+        <div className="relative z-10 flex flex-col items-center text-center">
+            <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mb-3 backdrop-blur-sm">
+               <Coffee size={28} className="text-white" />
             </div>
-        )}
-      </section>
+            <h2 className="font-bold text-xl">Selamat Hari Minggu!</h2>
+            <p className="text-orange-100 text-sm mt-1 max-w-[200px]">
+              Lepaskan penat, nikmati kopi Anda. Tidak ada jadwal hari ini.
+            </p>
+        </div>
+      </div>
+    );
+  }
 
+  // KASUS 2: TIDAK ADA JADWAL (Hari Kerja tapi Kosong)
+  if (smartSchedule.length === 0) {
+    return (
+      <div className="bg-slate-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+        <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-5 rounded-full blur-2xl"></div>
+        <div className="flex flex-col items-center text-center relative z-10">
+            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-3">
+               <Calendar size={24} />
+            </div>
+            <h2 className="font-bold text-lg">Tidak Ada Jadwal</h2>
+            <p className="text-slate-300 text-xs mt-1">
+              Hari {dayName} ini kosong. Gunakan untuk administrasi atau istirahat.
+            </p>
+        </div>
+      </div>
+    );
+  }
+
+  // KASUS 3: ADA JADWAL (Tampilan Fokus Baru)
+  return (
+    <div className="bg-indigo-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+      {/* Dekorasi Background */}
+      <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-10 rounded-full blur-2xl"></div>
+      <div className="absolute -left-4 -bottom-4 w-20 h-20 bg-indigo-400 opacity-20 rounded-full blur-xl"></div>
+
+      {/* Header Kecil */}
+      <div className="flex justify-between items-center mb-4 relative z-10">
+        <h2 className="font-bold text-lg flex items-center gap-2">
+          <Clock size={18} /> Jadwal {dayName}
+        </h2>
+        {/* Jam Digital Realtime */}
+        <span className="text-xs font-mono bg-indigo-500/50 px-2 py-1 rounded-lg border border-indigo-400/30">
+           {now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}
+        </span>
+      </div>
+
+      {/* List Jadwal */}
+      <div className="space-y-3 relative z-10">
+        {smartSchedule.map((item, idx) => {
+            // Tentukan Style berdasarkan Status (Logic Lama, Visual Baru)
+            let itemBg = 'bg-white/10 border-white/10'; // Default (Upcoming)
+            let icon = <span className="text-xs font-bold text-indigo-100">{item.startPeriod}</span>;
+            let statusText = `${item.startTimeStr} - ${item.endTimeStr}`;
+            
+            if (item.status === 'active') {
+                itemBg = 'bg-white/25 border-white/40 ring-1 ring-white/50'; // Sedang Mengajar (Highlight)
+                statusText = 'Sedang Berlangsung';
+                icon = <Activity size={16} className="text-white animate-pulse" />;
+            } else if (item.status === 'done') {
+                itemBg = 'bg-indigo-800/50 border-indigo-700/50 opacity-60'; // Selesai (Dimmed)
+                icon = <CheckCircle size={16} className="text-emerald-300" />;
+            }
+
+            return (
+                <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${itemBg}`}>
+                   {/* Kolom Waktu / Ikon */}
+                   <div className="w-10 h-10 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
+                     {icon}
+                   </div>
+                   
+                   {/* Info Kelas */}
+                   <div className="flex-1 min-w-0">
+                     <div className="flex justify-between items-start">
+                        <h3 className="font-bold text-sm truncate pr-2">{item.className}</h3>
+                        {item.isJournalDone && (
+                            <span className="text-[10px] bg-emerald-500/80 px-1.5 py-0.5 rounded text-white font-medium flex items-center gap-1">
+                                <CheckCircle size={8}/> Absen
+                            </span>
+                        )}
+                     </div>
+                     <p className="text-xs text-indigo-100 truncate">{statusText}</p>
+                   </div>
+                </div>
+            );
+        })}
+        
+        <div className="text-center mt-2 pt-1">
+             <button className="text-[10px] text-indigo-200 hover:text-white flex items-center justify-center gap-1 w-full opacity-70">
+                Lihat Selengkapnya <ChevronRight size={10}/>
+             </button>
+        </div>
+      </div>
     </div>
   );
 };
