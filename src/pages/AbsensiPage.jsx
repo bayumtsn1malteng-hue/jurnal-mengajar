@@ -302,7 +302,7 @@ const AbsensiPage = () => {
         )}
       </div>
 
-      <div className="p-6 pt-0">
+      <div className="p-6 pt-12">
         {/* VIEW 1: LIST RIWAYAT */}
         {view === 'list' && (
            <div className="space-y-4">
