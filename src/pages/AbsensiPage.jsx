@@ -307,7 +307,7 @@ const AbsensiPage = () => {
         {view === 'list' && (
            <div className="space-y-4">
              {filteredHistory.length === 0 ? (
-                 <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+                 <div className="text-center py-18 bg-white rounded-3xl border border-dashed border-slate-200">
                      <p className="text-slate-400 font-medium text-sm px-6 leading-relaxed">Belum ada riwayat absensi.</p>
                  </div>
              ) : (
