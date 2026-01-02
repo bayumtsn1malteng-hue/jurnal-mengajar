@@ -66,6 +66,24 @@ db.version(3).stores({
   journals: '++id, date, classId, syllabusId, *tags'
 });
 
+// --- UPDATE V4: Fitur Ide Mengajar ---
+// Update db ke versi 4
+db.version(4).stores({
+  // ideas: Tabel untuk menyimpan catatan/ide
+  // title: Judul
+  // type: text/cornell/todo (untuk filter nanti)
+  // tags: array tag (bintang * agar terindeks elemen array-nya)
+  // isArchived: 0/1 (soft delete)
+  ideas: '++id, title, type, createdAt, updatedAt, isArchived, *tags'
+});
+
+// --- UPDATE V5: Relasi Ide ke Jurnal ---
+db.version(5).stores({
+  // Kita tambahkan 'linkedJournalId' agar bisa di-query
+  ideas: '++id, title, type, createdAt, updatedAt, isArchived, linkedJournalId, *tags'
+});
+
+
 // Seed Data (Contoh Data Awal agar tidak kosong melompong saat dev)
 db.on('populate', () => {
   db.settings.bulkAdd([
