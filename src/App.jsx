@@ -12,6 +12,7 @@ import NilaiPage from './pages/NilaiPage';
 import PengaturanPage from './pages/PengaturanPage';
 import JurnalPage from './pages/JurnalPage';
 import StatistikPage from './pages/StatistikPage';
+import IdeMengajarPage from './pages/IdeMengajarPage';
 
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
           <Route path="/rencana-ajar" element={<RencanaAjar />}/>
           <Route path="/profil" element={<Profil />} />
           <Route path="/statistik" element={<StatistikPage />} />
+          <Route path="/ide" element={<IdeMengajarPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -64,7 +64,7 @@ const Dashboard = () => {
     { id: 'perkembangan_kelas', label: 'Perkembangan Kelas', icon: <TrendingUp size={24} />, path: '/perkembangan-kelas', color: 'bg-teal-100 text-teal-600', isComingSoon: true },
     { id: 'perkembangan_siswa', label: 'Perkembangan Siswa', icon: <Users size={24} />, path: '/perkembangan-siswa', color: 'bg-emerald-100 text-emerald-600', isComingSoon: true },
     { id: 'statistik', label: 'Statistik Data', icon: <BarChart2 size={24} />, path: '/statistik', color: 'bg-amber-100 text-amber-600' },
-    { id: 'ide', label: 'Ide Mengajar', icon: <Lightbulb size={24} />, path: '/ide', color: 'bg-yellow-100 text-yellow-600', isComingSoon: true },
+    { id: 'ide', label: 'Ide Mengajar', icon: <Lightbulb size={24} />, path: '/ide', color: 'bg-yellow-100 text-yellow-600'},
     { id: 'inspirasi', label: 'Sumber Inspirasi', icon: <Youtube size={24} />, path: '/inspirasi', color: 'bg-red-100 text-red-600', isComingSoon: true },
     { id: 'guru_ai', label: 'Guru AI', icon: <Bot size={24} />, path: '/ai', color: 'bg-purple-100 text-purple-600', isComingSoon: true },
   ];

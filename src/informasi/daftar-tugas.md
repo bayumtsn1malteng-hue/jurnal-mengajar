@@ -20,6 +20,13 @@
 14. ~~fix: navigasi lama.~~ 
 15. ~~fix: menambahkan kemampuan untuk export excel di buku nilai. ~~
 16. [Bila memungkinkan, menyediakan tutorial aplikasi bagi pengguna baru](tutorial.md)
+17. fitur [Notetaking](notetaking.md)
+18. fitur [Jurnal Non Mengajar](jurnal-non-ajar.md)
+19. Setting Kalender Akademik dan Libur [Pengaturan Page](pengaturan-page.md).
+20. Menambahkan fitur edit setup absensi ke bagian Isi Presensi yang sudah terisi [Absensi](absensi.md) 
+21. Mengganti navigasi bawah akun menjadi jurnal non-mengajar. 
+22. Menambah sidebar, memasukkan pengaturan, statistik, edit profil. ini akan merapikan dashboard. 
+21. Ubah alert di laman jurnal menjadi confirm atau toast. 
 
 ---
 ## Tambahan dari gemini
