@@ -1,5 +1,6 @@
 # DAFTAR PROMPT
-[Penambahan Fitur](#penambahan-fitur)
+
+INFO: File Daftar Prompt ini adalah template, bukan instruksi. Daftar Prompt berasal dari pengalaman pengguna berinteraksi dengan AI. Beberapa prompt yang menghasilkan respon paling efektif dianggap sebagai praktik baik dan disimpan di sini. Jika Anda merujuk ke daftar tugas, silakan merujuk ke daftar-tugas.md dan tautan-tautan berkaitan yang tertera di dalamnya.  
 
 ## TEMPLATE ILUSTRASI - SITUASI IDEAL - MASALAH - SOLUSI - ILUSTRASI SOLUSI - KEINGINAN
 ILUSTRASI:

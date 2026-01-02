@@ -20,9 +20,6 @@
 14. ~~fix: navigasi lama.~~ 
 15. ~~fix: menambahkan kemampuan untuk export excel di buku nilai. ~~
 16. [Bila memungkinkan, menyediakan tutorial aplikasi bagi pengguna baru](tutorial.md)
-17. [Fitur berbagi masih belum bisa di PengaturanPage.jsx](berbagi-json.md)
-18. [Notifikasi untuk back-up data secara reguler](notifikasi.md)
-19. [Menambahkan fitur untuk ekspor absensi dan nilai ke excel](ekspor.md)
 
 ---
 ## Tambahan dari gemini
@@ -30,7 +27,7 @@
 
 ~~Di src/pages/NilaiPage.jsx, Anda perlu menambahkan tombol untuk mengunduh rekap nilai menjadi file .xlsx. Tanpa ini, guru akan kesulitan memindahkan nilai ke Raport resmi sekolah. ~~
 
-### Validasi Aset PWA:
+#### Validasi Aset PWA:
 
 Di vite.config.js, Anda mereferensikan ikon pwa-1024x1024.png. Pastikan file fisik gambar tersebut benar-benar ada di folder public dan ukurannya sesuai, agar saat diinstal di HP ikonnya tampil cantik.
 
@@ -38,9 +35,55 @@ Di vite.config.js, Anda mereferensikan ikon pwa-1024x1024.png. Pastikan file fis
 
 ~~Pastikan tombol "Lihat Semua" di Dashboard atau menu navigasi bawah sudah benar-benar mengarah ke /jurnal (komponen JurnalPage.jsx).~~
 
-### Pembaruan Profil
+#### Pembaruan Profil
 menambahkan semester dan tahun ajaran. // Mungkin perlu juga memasukkan tanggal libur akademik dan libur nasional. Penambahan kedua informasi akan membantu guru mendapatkan informasi. Contoh informasi: di hari pertama libur akademik akan muncul notifikasi HP berisi pesan untuk memanfaatkan liburan, apa yang perlu dilakukan selama liburan, sampai kapan libur. notifikasi muncul lagi sehari sebelum libur akademik berakhir. pada Libur nasional dan cuti bersama, muncul notifikasi sehari sebelum libur memberitahukan besok adalah libur. bila libur lebih dari 1 hari, sampaikan waktu libur dari tanggal berapa sampai dengan tanggal berapa. 
 
+---
+### TAMBAHAN BARU DARI GEMINI TANGGAL 29-12-2025
 
+🔴 Prioritas Primer (UX & Fitur Vital)
+Fokus: Apa yang dirasakan dan dilihat langsung oleh pengguna.
 
+#### ~~[UX] Redesign Dashboard (dashboard.md)~~
 
+Deskripsi: Pindahkan Statistik ke halaman baru. Naikkan Jadwal ke atas. Tambahkan grid menu baru (Monitoring, Perkembangan, dll - walau fiturnya belum ada, siapkan tombol/grid-nya).
+
+Benefit: Navigasi lebih logis dan informatif.
+
+[Bug/UX] Fix Date & Timezone Handling
+
+Deskripsi: Mengganti logic new Date().toISOString().split('T')[0] dengan logic yang sadar zona waktu lokal (WIB/WITA/WIT) agar tanggal jurnal tidak mundur ke hari kemarin saat diinput malam hari/dini hari.
+
+Benefit: Data akurat, guru tidak bingung tanggal.
+
+[Feat] Notifikasi HP "Saatnya Masuk Kelas" (Dari daftar lama)
+
+Deskripsi: Integrasi Service Worker/PWA notification.
+
+#### 🟡 Prioritas Sekunder (Green Coding, Refactoring, & Config)
+Fokus: Efisiensi, Kerapian Kode, dan Skalabilitas.
+
+[Green Coding] Optimasi Memori StudentAttendanceRow.jsx
+
+Deskripsi: Memindahkan array options (Hadir, Sakit, Izin, dll) keluar dari komponen agar tidak dibuat ulang (re-allocated) setiap kali baris dirender.
+
+Benefit: Aplikasi lebih ringan, hemat baterai (walau tidak terlihat langsung).
+
+[Refactor] Pecah Komponen AbsensiPage.jsx
+
+Deskripsi: Memisahkan UI menjadi AbsensiList, AbsensiForm, dan AbsensiInput di folder components.
+
+Benefit: Kode lebih mudah dibaca dan di-maintain ke depannya.
+
+[Config] Logic Semester Dinamis (excelGenerator.js)
+
+Deskripsi: Menghapus hardcoded bulan Juli/Januari. Pindahkan penentuan semester ke db.settings atau menu Pengaturan.
+
+Benefit: Fleksibilitas jika kalender akademik berubah.
+
+#### PRIORITAS TERSIER
+[UX] Smart Redirect di JurnalPage (daftar-prompt.md)
+
+Deskripsi: Tombol "Edit Data Absen" harus cerdas. Cek DB dulu, jika absen hari itu ada -> Langsung edit (Buka AbsensiPage mode input). Jika tidak -> Buka mode create.
+
+Benefit: Mengurangi klik bagi guru.
