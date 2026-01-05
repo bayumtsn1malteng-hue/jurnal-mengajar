@@ -1,19 +1,22 @@
 // src/services/backupService.js
 import { db } from '../db';
-import { findAppFolder, createAppFolder, uploadFileToDrive, listBackupFiles, downloadBackupFile } from './driveService';
+import { 
+    findAppFolder, createAppFolder, uploadFileToDrive, updateFileInDrive, 
+    findFileInFolder, downloadBackupFile, listBackupFiles 
+} from './driveService';
 
-// Daftar tabel yang akan di-backup
 const TABLES_TO_BACKUP = [
     'settings', 'classes', 'students', 'syllabus', 
     'assessments_meta', 'journals', 'attendance', 'grades', 'ideas'
 ];
+const SYNC_FILENAME = "jurnal_auto_sync.json";
 
-// --- CORE LOGIC ---
-
+// --- HELPER DATA ---
 const generateBackupData = async () => {
     const backupData = {
         version: 1,
-        timestamp: new Date().toISOString(),
+        last_modified: new Date().toISOString(),
+        device_info: navigator.userAgent,
         tables: {}
     };
     for (const tableName of TABLES_TO_BACKUP) {
@@ -25,8 +28,7 @@ const generateBackupData = async () => {
 };
 
 const writeDataToDb = async (data) => {
-    if (!data || !data.tables) throw new Error("Format data backup tidak valid.");
-
+    if (!data || !data.tables) throw new Error("Format data tidak valid.");
     await db.transaction('rw', db.tables, async () => {
         for (const table of db.tables) await table.clear();
         for (const tableName of TABLES_TO_BACKUP) {
@@ -38,104 +40,112 @@ const writeDataToDb = async (data) => {
     });
 };
 
-// --- HELPER BARU UNTUK AUTOMATION ---
-
-// Cek apakah DB lokal kosong (hanya cek tabel siswa & kelas sebagai indikator)
-export const isLocalDbEmpty = async () => {
-    try {
-        const studentCount = await db.students.count();
-        const classCount = await db.classes.count();
-        return (studentCount + classCount) === 0;
-    } catch (e) {
-        return false;
-    }
-};
-
-// Simpan timestamp backup terakhir ke LocalStorage (Untuk Scheduler)
-const saveLocalTimestamp = () => {
-    localStorage.setItem('last_cloud_backup', new Date().toISOString());
-};
-
-export const getLocalBackupTimestamp = () => {
-    return localStorage.getItem('last_cloud_backup');
-};
-
-// --- FITUR CLOUD ---
-
-export const performCloudBackup = async () => {
+// --- LOGIKA SYNC OTOMATIS (SINGLE FILE) ---
+export const performAutoSync = async () => {
     try {
         let folderId = await findAppFolder();
         if (!folderId) folderId = await createAppFolder();
 
         const backupData = await generateBackupData();
-        const fileName = `jurnal_backup_${new Date().getTime()}.json`;
+        const existingFile = await findFileInFolder(folderId, SYNC_FILENAME);
 
-        await uploadFileToDrive(folderId, fileName, backupData);
-        
-        // UPDATE: Simpan timestamp ke localstorage agar scheduler tahu
-        saveLocalTimestamp();
-        
+        if (existingFile) {
+            await updateFileInDrive(existingFile.id, backupData);
+        } else {
+            await uploadFileToDrive(folderId, SYNC_FILENAME, backupData);
+        }
+
+        // Simpan timestamp lokal
+        localStorage.setItem('last_sync_time', new Date().toISOString());
         return true;
     } catch (error) {
-        console.error("Cloud Backup Failed:", error);
+        console.error("Auto Sync Failed:", error);
         throw error;
     }
 };
 
+// --- HELPER UNTUK RESTORE & LOCAL ---
+export const isLocalDbEmpty = async () => {
+    try {
+        const studentCount = await db.students.count();
+        const classCount = await db.classes.count();
+        return (studentCount + classCount) === 0;
+    } catch { 
+        return false; 
+    }
+};
+
+export const checkCloudForSyncFile = async () => {
+    try {
+        const folderId = await findAppFolder();
+        if (!folderId) return null;
+        return await findFileInFolder(folderId, SYNC_FILENAME);
+    } catch { 
+        return null; 
+    }
+};
+
+export const restoreFromCloudFile = async (fileId) => {
+    const data = await downloadBackupFile(fileId);
+    await writeDataToDb(data);
+    localStorage.setItem('last_sync_time', new Date().toISOString());
+    return true;
+};
+
+// --- FUNGSI PENDUKUNG (LEGACY & SCHEDULER) ---
+
+// 1. Digunakan oleh Scheduler di Dashboard.jsx (YANG TADI HILANG)
+export const getLocalBackupTimestamp = () => {
+    return localStorage.getItem('last_sync_time');
+};
+
+// 2. Digunakan oleh PengaturanPage.jsx
 export const getAvailableBackups = async () => {
     try {
         const folderId = await findAppFolder();
         if (!folderId) return [];
         return await listBackupFiles(folderId);
-    } catch (error) {
-        console.error("Gagal list backup:", error);
-        throw error;
+    } catch { 
+        return []; 
     }
 };
 
-export const restoreFromCloud = async (fileId) => {
-    try {
-        const data = await downloadBackupFile(fileId);
-        await writeDataToDb(data);
-        saveLocalTimestamp(); // Anggap restore sebagai sync terakhir
-        return true;
-    } catch (error) {
-        console.error("Cloud Restore Failed:", error);
-        throw error;
-    }
-};
-
+// 3. Digunakan oleh PengaturanPage & AuthContext
 export const getLastBackupMetadata = async () => {
     try {
+        // Prioritas: Cek file sync tunggal (Real-time)
+        const syncFile = await checkCloudForSyncFile();
+        if (syncFile) return syncFile;
+
+        // Fallback: Cek list backup lama
         const files = await getAvailableBackups();
         if (files && files.length > 0) return files[0];
+        
         return null;
     } catch { 
         return null; 
     }
 };
 
-// --- FITUR LOCAL (OFFLINE) ---
+// Alias untuk kompatibilitas kode lama
+export const restoreFromCloud = restoreFromCloudFile; 
+export const performCloudBackup = performAutoSync; 
 
+// --- LOCAL FILE SUPPORT ---
 export const downloadLocalBackup = async () => {
-    try {
-        const data = await generateBackupData();
-        const jsonString = JSON.stringify(data, null, 2);
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        link.download = `backup-jurnal-lokal-${timestamp}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        return true;
-    } catch (error) {
-        console.error("Local Backup Failed:", error);
-        throw error;
-    }
+    const data = await generateBackupData();
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    link.download = `backup-jurnal-lokal-${timestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return true;
 };
 
 export const restoreFromLocalFile = async (file) => {
@@ -146,11 +156,11 @@ export const restoreFromLocalFile = async (file) => {
                 const data = JSON.parse(e.target.result);
                 await writeDataToDb(data);
                 resolve(true);
-            } catch (err) {
-                reject(new Error("File rusak atau bukan format JSON yang benar."));
+            } catch { 
+                reject(new Error("File rusak/invalid.")); 
             }
         };
-        reader.onerror = () => reject(new Error("Gagal membaca file."));
+        reader.onerror = () => reject(new Error("Gagal baca file."));
         reader.readAsText(file);
     });
 };

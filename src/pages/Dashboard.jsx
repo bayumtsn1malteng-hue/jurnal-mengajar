@@ -38,7 +38,7 @@ const TIME_MAPPING = {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [userName, setUserName] = useState('Cikgu');
   
   // Ref untuk memastikan scheduler hanya jalan sekali per mount

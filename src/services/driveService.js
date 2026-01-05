@@ -9,16 +9,11 @@ let tokenClient;
 let gapiInited = false;
 let gisInited = false;
 
-/**
- * Inisialisasi Google Client (GAPI + GIS)
- */
 export const initGoogleClient = (updateSigninStatus) => {
   if (!CLIENT_ID) {
     console.error("CLIENT_ID belum diset di .env");
     return;
   }
-
-  // 1. Load GAPI (Untuk Data Drive)
   const gapiScript = document.createElement('script');
   gapiScript.src = "https://apis.google.com/js/api.js";
   gapiScript.async = true;
@@ -26,10 +21,7 @@ export const initGoogleClient = (updateSigninStatus) => {
   gapiScript.onload = () => {
     window.gapi.load('client', async () => {
       try {
-        await window.gapi.client.init({
-          apiKey: API_KEY,
-          discoveryDocs: DISCOVERY_DOCS,
-        });
+        await window.gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
         gapiInited = true;
         maybeEnableButtons(updateSigninStatus);
       } catch (err) {
@@ -39,7 +31,6 @@ export const initGoogleClient = (updateSigninStatus) => {
   };
   document.body.appendChild(gapiScript);
 
-  // 2. Load GIS (Untuk Login Auth)
   const gisScript = document.createElement('script');
   gisScript.src = "https://accounts.google.com/gsi/client";
   gisScript.async = true;
@@ -51,13 +42,7 @@ export const initGoogleClient = (updateSigninStatus) => {
         scope: SCOPES,
         callback: (resp) => {
           if (resp.error !== undefined) throw (resp);
-          
-          // --- FIX PENTING: SET TOKEN KE GAPI ---
-          // Tanpa baris ini, GAPI tidak tahu kalau user sudah login
-          if (window.gapi.client) {
-             window.gapi.client.setToken(resp);
-          }
-          
+          if (window.gapi.client) window.gapi.client.setToken(resp);
           updateSigninStatus(true);
         },
       });
@@ -77,10 +62,7 @@ const maybeEnableButtons = (updateSigninStatus) => {
   }
 };
 
-export const signIn = () => {
-  if (tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
-};
-
+export const signIn = () => { if (tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' }); };
 export const signOut = () => {
   const token = window.gapi.client.getToken();
   if (token !== null) {
@@ -88,17 +70,11 @@ export const signOut = () => {
     window.gapi.client.setToken('');
   }
 };
+export const getAccessToken = () => window.gapi.client.getToken()?.access_token;
 
-export const getAccessToken = () => {
-  return window.gapi.client.getToken()?.access_token;
-};
-
-// ==========================================
-// FUNGSI API DRIVE
-// ==========================================
+// --- FUNGSI API DRIVE ---
 
 export const findAppFolder = async (folderName = "Jurnal_Mengajar_Backup") => {
-  // GAPI request ini akan gagal jika token belum di-set
   const response = await window.gapi.client.drive.files.list({
     q: `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`,
     fields: 'files(id, name)',
@@ -109,43 +85,50 @@ export const findAppFolder = async (folderName = "Jurnal_Mengajar_Backup") => {
 };
 
 export const createAppFolder = async (folderName = "Jurnal_Mengajar_Backup") => {
-  const fileMetadata = {
-    'name': folderName,
-    'mimeType': 'application/vnd.google-apps.folder'
-  };
-  const response = await window.gapi.client.drive.files.create({
-    resource: fileMetadata,
-    fields: 'id'
-  });
+  const fileMetadata = { 'name': folderName, 'mimeType': 'application/vnd.google-apps.folder' };
+  const response = await window.gapi.client.drive.files.create({ resource: fileMetadata, fields: 'id' });
   return response.result.id;
 };
 
+// FUNGSI BARU: Cari file spesifik dalam folder
+export const findFileInFolder = async (folderId, fileName) => {
+    const response = await window.gapi.client.drive.files.list({
+        q: `'${folderId}' in parents and name='${fileName}' and trashed=false`,
+        fields: 'files(id, name, modifiedTime)',
+        spaces: 'drive'
+    });
+    const files = response.result.files;
+    return (files && files.length > 0) ? files[0] : null;
+};
+
+// Upload Baru
 export const uploadFileToDrive = async (folderId, fileName, jsonContent) => {
     const accessToken = getAccessToken();
-    if (!accessToken) throw new Error("Token akses tidak ditemukan (Silakan login ulang)");
-
+    if (!accessToken) throw new Error("Token akses tidak ditemukan");
     const fileContent = JSON.stringify(jsonContent);
-    
-    const metadata = {
-        name: fileName,
-        mimeType: 'application/json',
-        parents: [folderId]
-    };
-
+    const metadata = { name: fileName, mimeType: 'application/json', parents: [folderId] };
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', new Blob([fileContent], { type: 'application/json' }));
-
     const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
         body: form
     });
-    
-    if(!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error?.message || "Gagal upload file");
-    }
+    if(!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Gagal upload"); }
+    return await response.json();
+};
+
+// FUNGSI BARU: Update File (PATCH)
+export const updateFileInDrive = async (fileId, jsonContent) => {
+    const accessToken = getAccessToken();
+    const fileContent = JSON.stringify(jsonContent);
+    const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: new Headers({ 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' }),
+        body: fileContent
+    });
+    if(!response.ok) { const err = await response.json(); throw new Error(err.error?.message || "Gagal update"); }
     return await response.json();
 };
 
@@ -159,9 +142,6 @@ export const listBackupFiles = async (folderId) => {
 };
 
 export const downloadBackupFile = async (fileId) => {
-    const response = await window.gapi.client.drive.files.get({
-        fileId: fileId,
-        alt: 'media'
-    });
+    const response = await window.gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
     return response.result;
 };
