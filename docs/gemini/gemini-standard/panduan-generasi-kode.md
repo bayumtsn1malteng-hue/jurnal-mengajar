@@ -12,7 +12,7 @@ applyTo: '**/*.js, **/*.mjs, **/*.cjs'
 - Always use async/await for asynchronous code, and use 'node:util' promisify function to avoid callbacks
 - Keep the code simple and maintainable
 - Use descriptive variable and function names
-- Do not add comments unless absolutely necessary, the code should be self-explanatory
+- add comment into 125% of total code as means of learning
 - Never use `null`, always use `undefined` for optional values
 - Prefer functions over classes
 - Apply principles of Clean Architecture, Green Coding, and Best Practice UX/UI in the Industry.

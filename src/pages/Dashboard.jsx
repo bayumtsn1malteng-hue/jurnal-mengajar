@@ -1,15 +1,20 @@
 // src/pages/Dashboard.jsx
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { 
   Users, BookOpen, Settings, Activity, TrendingUp, 
   BarChart2, Lightbulb, Youtube, Bot, ChevronRight,
-  Calendar, Clock, Coffee, CheckCircle, AlertCircle
+  Calendar, Clock, Coffee, CheckCircle, AlertTriangle, Cloud, ArrowRight, CheckCircle2
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
-// --- 1. DEFINISI JAM PELAJARAN (LOGIKA LAMA) ---
+// Import fungsi untuk scheduler
+import { getLocalBackupTimestamp, performCloudBackup } from '../services/backupService';
+import toast from 'react-hot-toast';
+
+// --- 1. DEFINISI JAM PELAJARAN (TETAP) ---
 const TIME_MAPPING = {
   NORMAL: {
     'I':   { start: '07:30', end: '08:10' },
@@ -33,9 +38,51 @@ const TIME_MAPPING = {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated, loading } = useAuth();
   const [userName, setUserName] = useState('Cikgu');
+  
+  // Ref untuk memastikan scheduler hanya jalan sekali per mount
+  const schedulerRan = useRef(false);
 
-  // Lazy Init Date (Solusi Error setState)
+  // --- LOGIC SCHEDULER BACKUP OTOMATIS (TASK 6.2) ---
+  useEffect(() => {
+    const runScheduler = async () => {
+        // Syarat: User login, halaman baru dimuat, belum pernah jalan di sesi ini
+        if (isAuthenticated && !schedulerRan.current) {
+            schedulerRan.current = true;
+            
+            const freq = localStorage.getItem('backup_frequency') || 'manual';
+            if (freq === 'manual') return;
+
+            const lastBackupStr = getLocalBackupTimestamp();
+            const now = new Date().getTime();
+            const lastTime = lastBackupStr ? new Date(lastBackupStr).getTime() : 0;
+            
+            // Hitung selisih waktu
+            const diffHours = (now - lastTime) / (1000 * 60 * 60);
+            
+            let shouldBackup = false;
+            if (freq === 'daily' && diffHours >= 24) shouldBackup = true;
+            if (freq === 'weekly' && diffHours >= (24 * 7)) shouldBackup = true;
+
+            if (shouldBackup) {
+                console.log(`[Scheduler] Menjalankan backup otomatis (${freq})...`);
+                try {
+                    // Backup silent (tanpa loading screen penuh), tapi beri notif kecil
+                    await performCloudBackup();
+                    toast.success("Backup otomatis berhasil dijalankan.", { position: 'bottom-right', duration: 3000 });
+                } catch (e) {
+                    console.warn("[Scheduler] Gagal backup otomatis:", e);
+                    // Silent fail agar tidak mengganggu user, atau toast error kecil
+                }
+            }
+        }
+    };
+    
+    runScheduler();
+  }, [isAuthenticated]);
+
+  // Lazy Init Date
   const [dateInfo] = useState(() => {
     const now = new Date();
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -56,7 +103,7 @@ const Dashboard = () => {
     loadSettings();
   }, []);
 
-  // --- MENU ITEMS (VISUAL BARU) ---
+  // --- MENU ITEMS (TETAP) ---
   const menuItems = [
     { id: 'kelas', label: 'Data Kelas & Siswa', icon: <Users size={24} />, path: '/kelas', color: 'bg-blue-100 text-blue-600' },
     { id: 'rencana', label: 'Rencana Pembelajaran', icon: <BookOpen size={24} />, path: '/rencana-ajar', color: 'bg-indigo-100 text-indigo-600' },
@@ -71,7 +118,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
-      {/* HEADER AREA */}
       <div className="bg-white p-6 rounded-b-3xl shadow-sm mb-6">
         <div className="flex justify-between items-start mb-6">
           <div>
@@ -82,10 +128,48 @@ const Dashboard = () => {
             <Settings size={20} />
           </button>
         </div>
-
-        {/* JADWAL SECTION (LOGIKA LAMA + TAMPILAN BARU) */}
         <JadwalSection dayName={dateInfo.dayName} todayISO={dateInfo.isoDate} />
       </div>
+
+      {/* DASHBOARD NUDGE */}
+      {!loading && (
+        <div className="px-6 mb-6 animate-in slide-in-from-top-2 duration-500">
+          {!isAuthenticated ? (
+            <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 flex items-start gap-4 shadow-sm relative overflow-hidden group">
+              <div className="bg-orange-100 p-2 rounded-xl text-orange-600 shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="flex-1 z-10">
+                <h3 className="font-bold text-orange-800 text-sm">Data Belum Diamankan</h3>
+                <p className="text-xs text-orange-600 mt-1 mb-3 leading-relaxed">
+                  Data Anda hanya tersimpan di HP ini. Hubungkan Google Drive agar data tidak hilang.
+                </p>
+                <Link to="/pengaturan" className="inline-flex items-center gap-2 text-xs font-bold bg-white text-orange-700 px-3 py-2 rounded-lg border border-orange-200 shadow-sm hover:bg-orange-50 transition-colors">
+                  <Cloud size={14} /> Hubungkan Sekarang <ArrowRight size={14}/>
+                </Link>
+              </div>
+              <Cloud className="absolute -right-4 -bottom-4 text-orange-100 opacity-50 rotate-12 group-hover:scale-110 transition-transform" size={100} />
+            </div>
+          ) : (
+            <div className="bg-indigo-600 rounded-2xl p-5 text-white shadow-lg shadow-indigo-200 relative overflow-hidden">
+               <div className="relative z-10 flex items-center justify-between">
+                 <div>
+                    <div className="flex items-center gap-2 mb-1">
+                       <span className="bg-white/20 p-1 rounded-full"><CheckCircle2 size={12}/></span>
+                       <p className="text-xs font-medium text-indigo-100">Sinkronisasi Cloud Aktif</p>
+                    </div>
+                    <h3 className="font-bold text-lg">Data Anda Aman.</h3>
+                 </div>
+                 <Link to="/pengaturan" className="bg-white text-indigo-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-50 transition-colors shadow-sm">
+                    Cek Backup
+                 </Link>
+               </div>
+               <Cloud className="absolute -right-6 -bottom-6 text-indigo-500 opacity-40" size={90} />
+               <Cloud className="absolute top-2 right-1/3 text-indigo-500 opacity-20" size={40} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* MENU GRID */}
       <div className="px-6">
@@ -108,153 +192,101 @@ const Dashboard = () => {
   );
 };
 
-// --- KOMPONEN JADWAL CERDAS (LOGIKA LAMA DIKEMBALIKAN) ---
+// --- KOMPONEN JADWAL (TETAP) ---
 const JadwalSection = ({ dayName, todayISO }) => {
   const [now, setNow] = useState(new Date());
 
-  // Update waktu tiap menit (untuk status Sedang Mengajar)
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // QUERY JADWAL & STATUS (LOGIKA LAMA)
   const smartSchedule = useLiveQuery(async () => {
     const settings = await db.settings.get('mySchedule');
     const allSchedules = settings?.value || [];
-    
-    // 1. Filter hari ini
     const todaySchedules = allSchedules.filter(s => s.day === dayName);
-
-    // 2. Hitung Status & Waktu
     const enriched = await Promise.all(todaySchedules.map(async (item) => {
       const isFriday = dayName === 'Jumat';
       const map = isFriday ? TIME_MAPPING.JUMAT : TIME_MAPPING.NORMAL;
-      
       const startTimeStr = map[item.startPeriod]?.start || '00:00';
       const endTimeStr = map[item.endPeriod]?.end || '23:59';
-
       const startTime = new Date(`${todayISO}T${startTimeStr}:00`);
       const endTime = new Date(`${todayISO}T${endTimeStr}:00`);
-      
-      // Cek apakah sudah absen / nilai
       const journalExists = await db.journals.where({ date: todayISO, classId: item.classId }).count() > 0;
-      
-      let status = 'upcoming'; // upcoming, active, done
+      let status = 'upcoming'; 
       if (now < startTime) status = 'upcoming';
       else if (now >= startTime && now <= endTime) status = 'active';
       else status = 'done';
-
       return { ...item, startTimeStr, endTimeStr, status, isJournalDone: journalExists };
     }));
-
-    // Sort berdasarkan jam
     return enriched.sort((a, b) => a.startTimeStr.localeCompare(b.startTimeStr));
   }, [now, dayName, todayISO]) || [];
 
-  // --- RENDERING TAMPILAN BARU ---
-
-  // KASUS 1: HARI MINGGU (Tampilan Libur Cantik)
   if (dayName === 'Minggu') {
     return (
       <div className="bg-orange-500 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-        {/* Dekorasi Background */}
         <div className="absolute -right-6 -top-6 w-32 h-32 bg-white opacity-20 rounded-full blur-3xl"></div>
         <div className="absolute -left-6 -bottom-6 w-24 h-24 bg-orange-300 opacity-30 rounded-full blur-2xl"></div>
-        
         <div className="relative z-10 flex flex-col items-center text-center">
             <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mb-3 backdrop-blur-sm">
                <Coffee size={28} className="text-white" />
             </div>
             <h2 className="font-bold text-xl">Selamat Hari Minggu!</h2>
-            <p className="text-orange-100 text-sm mt-1 max-w-[200px]">
-              Lepaskan penat, nikmati kopi Anda. Tidak ada jadwal hari ini.
-            </p>
+            <p className="text-orange-100 text-sm mt-1 max-w-[200px]">Lepaskan penat, nikmati kopi Anda. Tidak ada jadwal hari ini.</p>
         </div>
       </div>
     );
   }
 
-  // KASUS 2: TIDAK ADA JADWAL (Hari Kerja tapi Kosong)
   if (smartSchedule.length === 0) {
     return (
       <div className="bg-slate-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
         <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-5 rounded-full blur-2xl"></div>
         <div className="flex flex-col items-center text-center relative z-10">
-            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-3">
-               <Calendar size={24} />
-            </div>
+            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-3"><Calendar size={24} /></div>
             <h2 className="font-bold text-lg">Tidak Ada Jadwal</h2>
-            <p className="text-slate-300 text-xs mt-1">
-              Hari {dayName} ini kosong. Gunakan untuk administrasi atau istirahat.
-            </p>
+            <p className="text-slate-300 text-xs mt-1">Hari {dayName} ini kosong. Gunakan untuk administrasi atau istirahat.</p>
         </div>
       </div>
     );
   }
 
-  // KASUS 3: ADA JADWAL (Tampilan Fokus Baru)
   return (
     <div className="bg-indigo-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-      {/* Dekorasi Background */}
       <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-10 rounded-full blur-2xl"></div>
       <div className="absolute -left-4 -bottom-4 w-20 h-20 bg-indigo-400 opacity-20 rounded-full blur-xl"></div>
-
-      {/* Header Kecil */}
       <div className="flex justify-between items-center mb-4 relative z-10">
-        <h2 className="font-bold text-lg flex items-center gap-2">
-          <Clock size={18} /> Jadwal {dayName}
-        </h2>
-        {/* Jam Digital Realtime */}
-        <span className="text-xs font-mono bg-indigo-500/50 px-2 py-1 rounded-lg border border-indigo-400/30">
-           {now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}
-        </span>
+        <h2 className="font-bold text-lg flex items-center gap-2"><Clock size={18} /> Jadwal {dayName}</h2>
+        <span className="text-xs font-mono bg-indigo-500/50 px-2 py-1 rounded-lg border border-indigo-400/30">{now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</span>
       </div>
-
-      {/* List Jadwal */}
       <div className="space-y-3 relative z-10">
         {smartSchedule.map((item, idx) => {
-            // Tentukan Style berdasarkan Status (Logic Lama, Visual Baru)
-            let itemBg = 'bg-white/10 border-white/10'; // Default (Upcoming)
+            let itemBg = 'bg-white/10 border-white/10'; 
             let icon = <span className="text-xs font-bold text-indigo-100">{item.startPeriod}</span>;
             let statusText = `${item.startTimeStr} - ${item.endTimeStr}`;
-            
             if (item.status === 'active') {
-                itemBg = 'bg-white/25 border-white/40 ring-1 ring-white/50'; // Sedang Mengajar (Highlight)
+                itemBg = 'bg-white/25 border-white/40 ring-1 ring-white/50';
                 statusText = 'Sedang Berlangsung';
                 icon = <Activity size={16} className="text-white animate-pulse" />;
             } else if (item.status === 'done') {
-                itemBg = 'bg-indigo-800/50 border-indigo-700/50 opacity-60'; // Selesai (Dimmed)
+                itemBg = 'bg-indigo-800/50 border-indigo-700/50 opacity-60';
                 icon = <CheckCircle size={16} className="text-emerald-300" />;
             }
-
             return (
                 <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${itemBg}`}>
-                   {/* Kolom Waktu / Ikon */}
-                   <div className="w-10 h-10 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
-                     {icon}
-                   </div>
-                   
-                   {/* Info Kelas */}
-                   <div className="flex-1 min-w-0">
-                     <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-sm truncate pr-2">{item.className}</h3>
-                        {item.isJournalDone && (
-                            <span className="text-[10px] bg-emerald-500/80 px-1.5 py-0.5 rounded text-white font-medium flex items-center gap-1">
-                                <CheckCircle size={8}/> Absen
-                            </span>
-                        )}
-                     </div>
-                     <p className="text-xs text-indigo-100 truncate">{statusText}</p>
-                   </div>
+                    <div className="w-10 h-10 rounded-lg bg-black/20 flex items-center justify-center shrink-0">{icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                         <h3 className="font-bold text-sm truncate pr-2">{item.className}</h3>
+                         {item.isJournalDone && (<span className="text-[10px] bg-emerald-500/80 px-1.5 py-0.5 rounded text-white font-medium flex items-center gap-1"><CheckCircle size={8}/> Absen</span>)}
+                      </div>
+                      <p className="text-xs text-indigo-100 truncate">{statusText}</p>
+                    </div>
                 </div>
             );
         })}
-        
         <div className="text-center mt-2 pt-1">
-             <button className="text-[10px] text-indigo-200 hover:text-white flex items-center justify-center gap-1 w-full opacity-70">
-                Lihat Selengkapnya <ChevronRight size={10}/>
-             </button>
+             <button className="text-[10px] text-indigo-200 hover:text-white flex items-center justify-center gap-1 w-full opacity-70">Lihat Selengkapnya <ChevronRight size={10}/></button>
         </div>
       </div>
     </div>

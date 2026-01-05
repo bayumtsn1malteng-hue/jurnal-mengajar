@@ -1,237 +1,283 @@
 // src/pages/PengaturanPage.jsx
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { 
-  Download, Upload, ShieldCheck, AlertTriangle, Database, 
-  Share2, Save, Bell, BellOff, FileSpreadsheet // Tambah Icon FileSpreadsheet
+  LogOut, Cloud, Save, Database, User, RefreshCw, 
+  DownloadCloud, Loader2, Clock, Smartphone, FileJson, Upload, CalendarClock 
 } from 'lucide-react';
-import { dataService } from '../services/dataService';
-import { downloadAllAttendance, downloadAllGrades } from '../utils/excelGenerator'; // Import Fungsi Baru
-import toast from 'react-hot-toast';
-import ConfirmModal from '../components/ConfirmModal';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { downloadAllAttendance, downloadAllGrades } from '../utils/excelGenerator';
 import { db } from '../db';
+import toast from 'react-hot-toast';
+
+import { 
+  performCloudBackup, getAvailableBackups, restoreFromCloud, getLastBackupMetadata,
+  downloadLocalBackup, restoreFromLocalFile 
+} from '../services/backupService';
 
 const PengaturanPage = () => {
-  // --- STATE UMUM ---
-  const fileInputRef = useRef(null);
-  const [isPersisted, setIsPersisted] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const { user, isAuthenticated, login, logout, loading } = useAuth();
   
-  const [modal, setModal] = useState({
-    isOpen: false, title: '', message: '', onConfirm: () => {}, isDanger: false
-  });
+  // State UI
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [backupList, setBackupList] = useState([]);
+  const [isLoadingList, setIsLoadingList] = useState(false);
+  const [lastBackup, setLastBackup] = useState(null);
 
-  // --- LOGIKA NOTIFIKASI ---
-  const [notifPermission, setNotifPermission] = useState(Notification.permission);
-  const notifEnabled = useLiveQuery(async () => {
-    const setting = await db.settings.get('enableNotifications');
-    return setting?.value ?? true; 
-  }, []) ?? true;
+  // STATE BARU: Frekuensi Backup
+  const [backupFreq, setBackupFreq] = useState('manual'); // manual, daily, weekly
 
-  const toggleNotification = async () => {
-    if (Notification.permission !== 'granted') {
-      const permission = await Notification.requestPermission();
-      setNotifPermission(permission);
-      if (permission !== 'granted') {
-        toast.error("Izin notifikasi ditolak browser. Cek ikon gembok di URL.");
-        return;
-      }
-    }
-    await db.settings.put({ key: 'enableNotifications', value: !notifEnabled });
-    toast.success(!notifEnabled ? "Notifikasi Diaktifkan" : "Notifikasi Dimatikan");
-  };
+  const fileInputRef = useRef(null);
 
-  // --- LOGIKA EXPORT LAPORAN (BARU) ---
-  const handleExportReport = async (type) => {
-    setLoading(true);
-    const toastId = toast.loading("Membuat laporan Excel...");
-    try {
-        if (type === 'absensi') {
-            await downloadAllAttendance(db);
-        } else if (type === 'nilai') {
-            await downloadAllGrades(db);
-        }
-        toast.success("Laporan berhasil diunduh!", { id: toastId });
-    } catch (error) {
-        console.error(error);
-        toast.error("Gagal: " + error.message, { id: toastId });
-    } finally {
-        setLoading(false);
-    }
-  };
-
-  // --- LOGIKA STORAGE & BACKUP ---
   useEffect(() => {
-    const checkPersistence = async () => {
-      if (navigator.storage && navigator.storage.persist) {
-        const isPersisted = await navigator.storage.persisted();
-        setIsPersisted(isPersisted);
-        if (!isPersisted) {
-            const granted = await navigator.storage.persist();
-            setIsPersisted(granted);
-        }
-      }
-    };
-    checkPersistence();
-  }, []);
+    // Load setting frekuensi dari localStorage
+    const savedFreq = localStorage.getItem('backup_frequency') || 'manual';
+    setBackupFreq(savedFreq);
 
-  const handleDownload = async () => {
-    setLoading(true);
-    const toastId = toast.loading("Menyiapkan file backup...");
+    if (isAuthenticated) {
+        getLastBackupMetadata().then(data => setLastBackup(data));
+    }
+  }, [isAuthenticated]);
+
+  // Handler Ganti Frekuensi
+  const handleFreqChange = (e) => {
+      const val = e.target.value;
+      setBackupFreq(val);
+      localStorage.setItem('backup_frequency', val);
+      toast.success(`Frekuensi backup diubah: ${val === 'daily' ? 'Harian' : val === 'weekly' ? 'Mingguan' : 'Manual'}`);
+  };
+
+  // --- HANDLER CLOUD ---
+  const handleCloudBackup = async () => {
+    if(!confirm("Buat cadangan data ke Google Drive?")) return;
+    setIsBackingUp(true);
+    const toastId = toast.loading("Mengunggah ke Drive...");
     try {
-      const jsonString = await dataService.exportData();
-      const fileName = `BACKUP_GURU_${new Date().toISOString().slice(0,10)}.json`;
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url; link.download = fileName;
-      document.body.appendChild(link); link.click();
-      setTimeout(() => { document.body.removeChild(link); window.URL.revokeObjectURL(url); }, 100);
-      toast.success("Backup disimpan!", { id: toastId });
-    } catch (error) { toast.error("Gagal Backup: " + error.message, { id: toastId }); } 
-    finally { setLoading(false); }
+        await performCloudBackup();
+        toast.success("Backup Cloud Sukses!", { id: toastId });
+        setLastBackup(await getLastBackupMetadata());
+    } catch (e) {
+        let errorMsg = e.message || "Terjadi kesalahan";
+        if(e.result?.error?.message) errorMsg = e.result.error.message;
+        toast.error("Gagal: " + errorMsg, { id: toastId });
+    } finally {
+        setIsBackingUp(false);
+    }
   };
 
-  const handleShare = async () => {
-    setLoading(true);
-    const toastId = toast.loading("Membuka menu share...");
-    try {
-      const jsonString = await dataService.exportData();
-      const fileName = `BACKUP_GURU_${new Date().toISOString().slice(0,10)}.json`;
-      const file = new File([jsonString], fileName, { type: "application/json" });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Backup Data Guru',
-          text: 'File cadangan aplikasi Jurnal Guru.'
-        });
-        toast.dismiss(toastId);
-      } else {
-        // Fallback info untuk Dev Mode / Browser Incompatible
-        toast.error("Share tidak didukung browser ini. Gunakan tombol 'Simpan File'.", { id: toastId, duration: 4000 });
-      }
-    } catch (error) {
-      if (error.name !== 'AbortError') toast.error("Gagal Share: " + error.message, { id: toastId });
-      else toast.dismiss(toastId);
-    } finally { setLoading(false); }
-  };
-
-  const onFileSelected = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    e.target.value = '';
-    setModal({
-        isOpen: true, title: "Timpa Data?", message: "Data lama akan ditimpa dengan data backup ini.", isDanger: true,
-        onConfirm: () => processRestore(file)
-    });
-  };
-
-  const processRestore = (file) => {
-    setLoading(true);
-    const toastId = toast.loading("Memproses restore...");
-    const reader = new FileReader();
-    reader.onload = async (event) => {
+  const openCloudRestore = async () => {
+      setIsLoadingList(true);
+      const toastId = toast.loading("Mencari cadangan...");
       try {
-        await dataService.importData(event.target.result);
-        toast.success("Berhasil dipulihkan!", { id: toastId });
-        setTimeout(() => window.location.reload(), 1500);
-      } catch (error) { toast.error("Gagal: " + error.message, { id: toastId }); setLoading(false); } 
-    };
-    reader.readAsText(file);
+          const files = await getAvailableBackups();
+          setBackupList(files);
+          toast.dismiss(toastId);
+          if(files.length === 0) toast("Tidak ada file backup di Drive.", { icon: '📂' });
+          else setShowRestoreModal(true);
+      } catch (e) {
+          toast.error("Gagal koneksi Drive: " + e.message, { id: toastId });
+      } finally {
+          setIsLoadingList(false);
+      }
+  };
+
+  const handleCloudRestoreProcess = async (fileId) => {
+      if(!confirm("⚠️ PERINGATAN: Data di HP ini akan DITIMPA dengan data dari Cloud. Lanjutkan?")) return;
+      setIsRestoring(true);
+      const toastId = toast.loading("Memulihkan dari Cloud...");
+      try {
+          await restoreFromCloud(fileId);
+          toast.success("Data Cloud berhasil dipulihkan!", { id: toastId });
+          setShowRestoreModal(false);
+          setTimeout(() => window.location.reload(), 1500);
+      } catch (e) {
+          toast.error("Gagal restore: " + e.message, { id: toastId });
+      } finally {
+          setIsRestoring(false);
+      }
+  };
+
+  // --- HANDLER LOCAL ---
+  const handleLocalBackup = async () => {
+    const toastId = toast.loading("Membuat file backup...");
+    try {
+        await downloadLocalBackup();
+        toast.success("File backup tersimpan di HP!", { id: toastId });
+    } catch (e) {
+        toast.error("Gagal backup lokal: " + e.message, { id: toastId });
+    }
+  };
+
+  const triggerLocalRestore = () => fileInputRef.current.click();
+
+  const handleFileChange = async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      if(!confirm(`⚠️ PERINGATAN: Data akan DITIMPA dengan isi file "${file.name}". Lanjutkan?`)) {
+          event.target.value = null; return;
+      }
+      const toastId = toast.loading("Membaca file backup...");
+      try {
+          await restoreFromLocalFile(file);
+          toast.success("Data berhasil dipulihkan!", { id: toastId });
+          setTimeout(() => window.location.reload(), 1500);
+      } catch (e) {
+          toast.error("Gagal restore: " + e.message, { id: toastId });
+      } finally {
+          event.target.value = null;
+      }
+  };
+
+  const handleDownloadAbsen = async () => {
+    try { await downloadAllAttendance(db); toast.success("Download Absensi Berhasil!"); } 
+    catch (e) { toast.error(e.message); }
+  };
+  const handleDownloadNilai = async () => {
+    try { await downloadAllGrades(db); toast.success("Download Nilai Berhasil!"); } 
+    catch (e) { toast.error(e.message); }
+  };
+
+  const formatTime = (iso) => {
+      if(!iso) return '-';
+      return new Date(iso).toLocaleDateString('id-ID', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 pb-24">
-      <ConfirmModal 
-        isOpen={modal.isOpen} onClose={() => setModal({...modal, isOpen: false})}
-        onConfirm={modal.onConfirm} title={modal.title} message={modal.message} isDanger={modal.isDanger}
-      />
-
+    <div className="p-6 pb-24 bg-slate-50 min-h-screen">
       <h1 className="text-2xl font-bold text-slate-800 mb-6">Pengaturan</h1>
 
-      {/* SECTION 1: STORAGE STATUS */}
-      <div className={`p-4 rounded-xl border mb-6 flex items-start gap-3 ${isPersisted ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-        {isPersisted ? <ShieldCheck size={24} /> : <AlertTriangle size={24} />}
-        <div>
-          <h3 className="font-bold text-sm">{isPersisted ? 'Database Aman (Persisted)' : 'Mode Penyimpanan Sementara'}</h3>
-          <p className="text-xs mt-1">{isPersisted ? "Data aman dari pembersihan otomatis." : "Data berisiko hilang jika memori penuh."}</p>
+      {/* SECTION 1: CLOUD SYNC */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-6">
+        <h2 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-900">
+          <Cloud size={20} className="text-indigo-500"/> Sinkronisasi Cloud
+        </h2>
+
+        {loading ? (
+           <p className="text-slate-400 text-sm animate-pulse">Memuat status akun...</p>
+        ) : isAuthenticated ? (
+          <div className="space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-4 bg-indigo-50 p-4 rounded-2xl">
+              {user?.picture ? (
+                <img src={user.picture} alt="Profile" className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
+              ) : (
+                <div className="w-12 h-12 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 font-bold">
+                  {user?.name?.charAt(0) || 'U'}
+                </div>
+              )}
+              <div className="flex-1 overflow-hidden">
+                <h3 className="font-bold text-slate-800 truncate">{user?.name}</h3>
+                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                <div className="flex items-center gap-1.5 mt-2">
+                    <Clock size={12} className="text-slate-400"/>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                        Last Backup: <span className="font-bold text-indigo-600">{lastBackup ? formatTime(lastBackup.createdTime) : 'Belum pernah'}</span>
+                    </p>
+                </div>
+              </div>
+              <button onClick={logout} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"><LogOut size={20}/></button>
+            </div>
+
+            {/* OPSI FREKUENSI BACKUP (BARU) */}
+            <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2 text-slate-600">
+                    <CalendarClock size={18}/>
+                    <span className="text-sm font-bold">Frekuensi Backup</span>
+                </div>
+                <select 
+                    value={backupFreq} 
+                    onChange={handleFreqChange}
+                    className="bg-white border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2"
+                >
+                    <option value="manual">Manual (Mati)</option>
+                    <option value="daily">Harian</option>
+                    <option value="weekly">Mingguan</option>
+                </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={handleCloudBackup} disabled={isBackingUp} className="p-4 border border-indigo-100 bg-indigo-50/50 hover:bg-indigo-100 rounded-2xl text-indigo-700 text-sm font-bold flex flex-col items-center gap-2 transition-all active:scale-95 disabled:opacity-70">
+                 {isBackingUp ? <Loader2 size={24} className="animate-spin"/> : <Save size={24}/>}
+                 {isBackingUp ? "Mengunggah..." : "Backup Cloud"}
+              </button>
+              <button onClick={openCloudRestore} disabled={isBackingUp} className="p-4 border border-blue-100 bg-blue-50/50 hover:bg-blue-100 rounded-2xl text-blue-700 text-sm font-bold flex flex-col items-center gap-2 transition-all active:scale-95 disabled:opacity-70">
+                 {isLoadingList ? <Loader2 size={24} className="animate-spin"/> : <RefreshCw size={24}/>}
+                 {isLoadingList ? "Memuat..." : "Restore Cloud"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-4">
+             <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300"><User size={32}/></div>
+             <p className="text-sm text-slate-500 mb-4 px-4">Hubungkan akun Google untuk backup otomatis & aman.</p>
+             <button onClick={login} className="w-full bg-white border border-slate-200 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm">
+               <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="G" /> Sign in with Google
+             </button>
+          </div>
+        )}
+      </div>
+
+      {/* SECTION 2: BACKUP LOCAL */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-6">
+        <h2 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+          <Smartphone size={20} className="text-slate-500"/> Backup Offline (File)
+        </h2>
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+        <div className="grid grid-cols-2 gap-3">
+            <button onClick={handleLocalBackup} className="p-3 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95">
+                <FileJson size={18}/> Download Backup
+            </button>
+            <button onClick={triggerLocalRestore} className="p-3 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95">
+                <Upload size={18}/> Restore dari File
+            </button>
         </div>
       </div>
 
-      {/* SECTION 2: NOTIFIKASI */}
-      <section className="mb-6 space-y-4">
-         <h2 className="font-bold text-slate-700 flex items-center gap-2"><Bell size={18}/> Notifikasi</h2>
-         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${notifEnabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
-                    {notifEnabled ? <Bell size={20}/> : <BellOff size={20}/>}
-                </div>
-                <div>
-                    <h3 className="font-bold text-slate-800 text-sm">Pengingat Jadwal</h3>
-                    <p className="text-xs text-slate-500">
-                        {notifPermission === 'granted' ? "Alarm aktif saat jam pelajaran." : "Izin browser diperlukan."}
-                    </p>
-                </div>
-            </div>
-            <button onClick={toggleNotification} className={`w-12 h-6 rounded-full transition-colors relative ${notifEnabled ? 'bg-indigo-500' : 'bg-slate-300'}`}>
-                <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${notifEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-         </div>
-      </section>
-
-      {/* SECTION 3: EKSPOR LAPORAN (BARU) */}
-      <section className="mb-6 space-y-4">
-         <h2 className="font-bold text-slate-700 flex items-center gap-2"><FileSpreadsheet size={18}/> Ekspor Laporan</h2>
-         <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => handleExportReport('absensi')} disabled={loading} className="p-4 bg-white border border-slate-200 rounded-2xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition text-left shadow-sm group">
-                <div className="mb-2 p-2 bg-emerald-100 text-emerald-600 rounded-lg w-fit group-hover:scale-110 transition-transform"><Download size={20}/></div>
-                <h3 className="font-bold text-sm text-slate-800 group-hover:text-emerald-800">Rekap Absensi</h3>
-                <p className="text-[10px] text-slate-400 mt-1">Semua kelas (Semester ini)</p>
-            </button>
-
-            <button onClick={() => handleExportReport('nilai')} disabled={loading} className="p-4 bg-white border border-slate-200 rounded-2xl hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition text-left shadow-sm group">
-                <div className="mb-2 p-2 bg-blue-100 text-blue-600 rounded-lg w-fit group-hover:scale-110 transition-transform"><Download size={20}/></div>
-                <h3 className="font-bold text-sm text-slate-800 group-hover:text-blue-800">Rekap Nilai</h3>
-                <p className="text-[10px] text-slate-400 mt-1">Semua kelas & mapel</p>
-            </button>
-         </div>
-      </section>
-
-      {/* SECTION 4: MANAJEMEN DATA */}
-      <section className="space-y-4">
-        <h2 className="font-bold text-slate-700 flex items-center gap-2"><Database size={18}/> Backup & Restore</h2>
-        
-        {/* Backup Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center"><Download size={24}/></div>
-                <div><h3 className="font-bold text-slate-800">Backup Data</h3><p className="text-xs text-slate-500">Simpan data JSON</p></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-                <button onClick={handleDownload} disabled={loading} className="flex flex-col items-center justify-center gap-2 py-4 bg-slate-50 text-slate-700 rounded-xl font-bold border border-slate-200 hover:bg-slate-100">
-                    <Save size={20}/><span className="text-xs">Simpan File</span>
-                </button>
-                <button onClick={handleShare} disabled={loading} className="flex flex-col items-center justify-center gap-2 py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700">
-                    <Share2 size={20}/><span className="text-xs">Bagikan (WA)</span>
-                </button>
-            </div>
+      {/* SECTION 3: EXPORT EXCEL */}
+       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+        <h2 className="font-bold text-lg mb-4 text-slate-800">Export Excel</h2>
+        <div className="space-y-3">
+          <button onClick={handleDownloadAbsen} className="w-full flex items-center justify-between p-4 bg-green-50 text-green-800 rounded-2xl hover:bg-green-100 transition-colors">
+            <span className="font-bold text-sm">Download Rekap Absensi</span>
+            <Database size={18} />
+          </button>
+          <button onClick={handleDownloadNilai} className="w-full flex items-center justify-between p-4 bg-blue-50 text-blue-800 rounded-2xl hover:bg-blue-100 transition-colors">
+            <span className="font-bold text-sm">Download Rekap Nilai</span>
+            <Database size={18} />
+          </button>
         </div>
+      </div>
 
-        {/* Restore Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center"><Upload size={24}/></div>
-                <div><h3 className="font-bold text-slate-800">Restore Data</h3><p className="text-xs text-slate-500">Pulihkan dari JSON</p></div>
-            </div>
-            <input type="file" accept=".json" ref={fileInputRef} onChange={onFileSelected} className="hidden" />
-            <button onClick={() => fileInputRef.current.click()} disabled={loading} className="w-full py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50">
-                {loading ? 'Sedang Memproses...' : 'Pilih File Backup (.json)'}
-            </button>
+      {/* MODAL RESTORE */}
+      {showRestoreModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+           <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative max-h-[80vh] flex flex-col">
+              <h3 className="font-bold text-lg text-slate-800 mb-4">Pilih Cadangan Cloud</h3>
+              {isRestoring ? (
+                  <div className="py-12 text-center space-y-3">
+                      <Loader2 size={40} className="animate-spin text-indigo-600 mx-auto"/>
+                      <p className="text-sm font-bold text-slate-600">Memulihkan data...</p>
+                  </div>
+              ) : (
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                      {backupList.map(file => (
+                          <div key={file.id} className="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer group"
+                               onClick={() => handleCloudRestoreProcess(file.id)}>
+                              <div>
+                                  <p className="font-bold text-sm text-slate-700">{formatTime(file.createdTime)}</p>
+                                  <p className="text-[10px] text-slate-400">Ukuran: {(parseInt(file.size)/1024).toFixed(1)} KB</p>
+                              </div>
+                              <DownloadCloud size={18} className="text-slate-300 group-hover:text-indigo-600"/>
+                          </div>
+                      ))}
+                  </div>
+              )}
+              {!isRestoring && (
+                  <button onClick={() => setShowRestoreModal(false)} className="mt-4 w-full py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Batal</button>
+              )}
+           </div>
         </div>
-      </section>
-
-      <div className="mt-8 text-center"><p className="text-[10px] text-slate-300 font-mono">Build v1.1.0 (Full Features)</p></div>
+      )}
     </div>
   );
 };

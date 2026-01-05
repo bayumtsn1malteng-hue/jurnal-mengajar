@@ -1,52 +1,167 @@
 // src/services/driveService.js
-import { gapi } from 'gapi-script';
 
-// KONFIGURASI GOOGLE DRIVE
-// Ganti string di bawah dengan Client ID dari Google Cloud Console Anda
-const CLIENT_ID = "778219124620-fn6op23burks8gug4d20hjjt5dsdenjq.apps.googleusercontent.com"; 
-const API_KEY = ""; // Opsional untuk scope file pribadi
-const SCOPES = "https://www.googleapis.com/auth/drive.file";
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || ""; 
+const SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile";
+const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
 
 /**
- * TASK-002: Inisialisasi Google Client
- * @param {function} updateSigninStatus - Callback untuk update state React saat status login berubah
+ * Inisialisasi Google Client (GAPI + GIS)
  */
 export const initGoogleClient = (updateSigninStatus) => {
-  const start = () => {
-    gapi.client.init({
-      apiKey: API_KEY,
-      clientId: CLIENT_ID,
-      scope: SCOPES,
-      // discoveryDocs diperlukan untuk memudahkan akses endpoint API
-      discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"]
-    }).then(() => {
-      // TASK-004: Listen for sign-in state changes.
-      gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+  if (!CLIENT_ID) {
+    console.error("CLIENT_ID belum diset di .env");
+    return;
+  }
 
-      // Handle the initial sign-in state.
-      updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
-    }, (error) => {
-      console.error("Gagal inisialisasi GAPI:", error);
+  // 1. Load GAPI (Untuk Data Drive)
+  const gapiScript = document.createElement('script');
+  gapiScript.src = "https://apis.google.com/js/api.js";
+  gapiScript.async = true;
+  gapiScript.defer = true;
+  gapiScript.onload = () => {
+    window.gapi.load('client', async () => {
+      try {
+        await window.gapi.client.init({
+          apiKey: API_KEY,
+          discoveryDocs: DISCOVERY_DOCS,
+        });
+        gapiInited = true;
+        maybeEnableButtons(updateSigninStatus);
+      } catch (err) {
+        console.error("Gagal init GAPI:", err);
+      }
     });
   };
+  document.body.appendChild(gapiScript);
 
-  gapi.load('client:auth2', start);
+  // 2. Load GIS (Untuk Login Auth)
+  const gisScript = document.createElement('script');
+  gisScript.src = "https://accounts.google.com/gsi/client";
+  gisScript.async = true;
+  gisScript.defer = true;
+  gisScript.onload = () => {
+    try {
+      tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (resp) => {
+          if (resp.error !== undefined) throw (resp);
+          
+          // --- FIX PENTING: SET TOKEN KE GAPI ---
+          // Tanpa baris ini, GAPI tidak tahu kalau user sudah login
+          if (window.gapi.client) {
+             window.gapi.client.setToken(resp);
+          }
+          
+          updateSigninStatus(true);
+        },
+      });
+      gisInited = true;
+      maybeEnableButtons(updateSigninStatus);
+    } catch (err) {
+      console.error("Gagal init GIS:", err);
+    }
+  };
+  document.body.appendChild(gisScript);
 };
 
-/**
- * TASK-003: Fungsi Login & Logout
- */
+const maybeEnableButtons = (updateSigninStatus) => {
+  if (gapiInited && gisInited) {
+    const token = window.gapi.client.getToken();
+    updateSigninStatus(!!token); 
+  }
+};
+
 export const signIn = () => {
-  return gapi.auth2.getAuthInstance().signIn();
+  if (tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
 };
 
 export const signOut = () => {
-  return gapi.auth2.getAuthInstance().signOut();
+  const token = window.gapi.client.getToken();
+  if (token !== null) {
+    window.google.accounts.oauth2.revoke(token.access_token);
+    window.gapi.client.setToken('');
+  }
 };
 
-/**
- * Helper untuk mendapatkan token akses saat ini (berguna untuk upload manual nanti)
- */
 export const getAccessToken = () => {
-  return gapi.auth.getToken().access_token;
+  return window.gapi.client.getToken()?.access_token;
+};
+
+// ==========================================
+// FUNGSI API DRIVE
+// ==========================================
+
+export const findAppFolder = async (folderName = "Jurnal_Mengajar_Backup") => {
+  // GAPI request ini akan gagal jika token belum di-set
+  const response = await window.gapi.client.drive.files.list({
+    q: `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`,
+    fields: 'files(id, name)',
+    spaces: 'drive'
+  });
+  const files = response.result.files;
+  return (files && files.length > 0) ? files[0].id : null;
+};
+
+export const createAppFolder = async (folderName = "Jurnal_Mengajar_Backup") => {
+  const fileMetadata = {
+    'name': folderName,
+    'mimeType': 'application/vnd.google-apps.folder'
+  };
+  const response = await window.gapi.client.drive.files.create({
+    resource: fileMetadata,
+    fields: 'id'
+  });
+  return response.result.id;
+};
+
+export const uploadFileToDrive = async (folderId, fileName, jsonContent) => {
+    const accessToken = getAccessToken();
+    if (!accessToken) throw new Error("Token akses tidak ditemukan (Silakan login ulang)");
+
+    const fileContent = JSON.stringify(jsonContent);
+    
+    const metadata = {
+        name: fileName,
+        mimeType: 'application/json',
+        parents: [folderId]
+    };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', new Blob([fileContent], { type: 'application/json' }));
+
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+        body: form
+    });
+    
+    if(!response.ok) {
+        const errJson = await response.json();
+        throw new Error(errJson.error?.message || "Gagal upload file");
+    }
+    return await response.json();
+};
+
+export const listBackupFiles = async (folderId) => {
+    const response = await window.gapi.client.drive.files.list({
+        q: `'${folderId}' in parents and trashed=false and mimeType='application/json'`,
+        fields: 'files(id, name, createdTime, size)',
+        orderBy: 'createdTime desc'
+    });
+    return response.result.files;
+};
+
+export const downloadBackupFile = async (fileId) => {
+    const response = await window.gapi.client.drive.files.get({
+        fileId: fileId,
+        alt: 'media'
+    });
+    return response.result;
 };
