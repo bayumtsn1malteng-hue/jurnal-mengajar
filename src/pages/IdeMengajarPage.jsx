@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 import { 
   Maximize, Minimize, Save, FileText, ListTodo, LayoutTemplate, 
   Plus, Trash2, Search, ArrowLeft, Calendar, Tag, FilePlus,

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db';
-import toast, { Toaster } from 'react-hot-toast'; // Tambahkan Import Ini
+import {toast, Toaster } from 'sonner'; // Tambahkan Import Ini
 import { LogIn, User, Lock } from 'lucide-react';
 
 const Login = () => {

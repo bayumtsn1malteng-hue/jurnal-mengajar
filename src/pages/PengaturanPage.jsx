@@ -7,12 +7,13 @@ import {
 } from 'lucide-react';
 import { downloadAllAttendance, downloadAllGrades } from '../utils/excelGenerator';
 import { db } from '../db';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 import { 
   performCloudBackup, getAvailableBackups, restoreFromCloud, getLastBackupMetadata,
   downloadLocalBackup, restoreFromLocalFile 
 } from '../services/backupService';
+import ConfirmModal from '../components/ConfirmModal';
 
 const PengaturanPage = () => {
   const { user, isAuthenticated, login, logout, loading } = useAuth();
@@ -39,6 +40,19 @@ const PengaturanPage = () => {
         getLastBackupMetadata().then(data => setLastBackup(data));
     }
   }, [isAuthenticated]);
+
+  // TAMBAHKAN STATE BARU UNTUK MODAL
+  const [modal, setModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'primary', // atau 'danger'
+    isLoading: false
+  });
+
+  // FUNGSI HELPER UNTUK MENUTUP MODAL
+  const closeModal = () => setModal(prev => ({ ...prev, isOpen: false }));
 
   // Handler Ganti Frekuensi
   const handleFreqChange = (e) => {
@@ -82,21 +96,36 @@ const PengaturanPage = () => {
       }
   };
 
-  const handleCloudRestoreProcess = async (fileId) => {
-      if(!confirm("⚠️ PERINGATAN: Data di HP ini akan DITIMPA dengan data dari Cloud. Lanjutkan?")) return;
-      setIsRestoring(true);
-      const toastId = toast.loading("Memulihkan dari Cloud...");
-      try {
-          await restoreFromCloud(fileId);
-          toast.success("Data Cloud berhasil dipulihkan!", { id: toastId });
-          setShowRestoreModal(false);
-          setTimeout(() => window.location.reload(), 1500);
-      } catch (e) {
-          toast.error("Gagal restore: " + e.message, { id: toastId });
-      } finally {
-          setIsRestoring(false);
-      }
-  };
+  // Pisahkan logikanya: 1 fungsi pemicu modal, 1 fungsi eksekusi
+const confirmCloudRestore = (fileId) => {
+    setModal({
+        isOpen: true,
+        title: 'Pulihkan Data?',
+        message: 'Data di HP saat ini akan ditimpa dengan data dari Cloud. Tindakan ini tidak bisa dibatalkan.',
+        variant: 'danger', // Merah karena berbahaya
+        confirmLabel: 'Ya, Pulihkan',
+        onConfirm: () => executeCloudRestore(fileId) // Panggil fungsi eksekusi
+    });
+};
+
+const executeCloudRestore = async (fileId) => {
+    // Set loading di dalam modal
+    setModal(prev => ({ ...prev, isLoading: true }));
+    
+    // Gunakan toast loading Sonner
+    const toastId = toast.loading("Memulihkan data...");
+
+    try {
+        await restoreFromCloud(fileId);
+        toast.success("Berhasil dipulihkan!", { id: toastId });
+        closeModal(); // Tutup modal
+        setShowRestoreModal(false); // Tutup list file
+        setTimeout(() => window.location.reload(), 1500);
+    } catch (e) {
+        toast.error("Gagal: " + e.message, { id: toastId });
+        closeModal(); // Tutup modal jika gagal
+    }
+};
 
   // --- HANDLER LOCAL ---
   const handleLocalBackup = async () => {

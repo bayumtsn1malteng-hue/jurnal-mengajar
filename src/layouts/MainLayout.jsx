@@ -4,7 +4,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { 
   Home, ClipboardCheck, BookOpen, ChartNoAxesColumn, User 
 } from 'lucide-react';
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from 'sonner';
 
 // --- IMPORT HOOK ---
 import { useScheduleNotification } from '../hooks/useScheduleNotification';

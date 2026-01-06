@@ -8,7 +8,7 @@ import {
   ChevronLeft, FileSpreadsheet, Trash2, Pencil, 
   X, Save, Clipboard, HelpCircle, CheckCircle 
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import ConfirmModal from '../components/ConfirmModal';
 
 const KelasDetail = () => {

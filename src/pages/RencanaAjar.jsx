@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, Plus, Trash2, Filter, Tag, ExternalLink, X, Edit3, Info, CheckCircle2, Save, RotateCcw } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { syllabusService } from '../services/syllabusService';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import ConfirmModal from '../components/ConfirmModal';
 
 const toRoman = (num) => {

@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { Plus, Trash2, Users, ChevronLeft } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom'; // Digabung biar rapi
-import toast from 'react-hot-toast';
+import {toast} from 'sonner';
 import ConfirmModal from '../components/ConfirmModal';
 
 const Kelas = () => {

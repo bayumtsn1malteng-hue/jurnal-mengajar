@@ -1,7 +1,9 @@
 // src/App.jsx
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Toaster, toast } from 'react-hot-toast';
+// react-hot-toast dimatikan, coba sonner dulu.
+// import { Toaster, toast } from 'react-hot-toast';
+import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { restoreFromCloud } from './services/backupService'; // Import fungsi restore
 import { DownloadCloud } from 'lucide-react';
@@ -82,7 +84,9 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Toaster position="top-center" />
+        {/* Komponen Toaster diganti dengan Sonner */}
+        {/*<Toaster position="top-center" />*/}
+        <Toaster position='top-center' richColors />
         <AutoRestoreHandler /> {/* Pasang Handler di sini */}
         
         <Routes>

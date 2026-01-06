@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, Plus, Calendar, Filter, Save, Search, Trash2, Download } from 'lucide-react'; // Tambah Icon Download
 import { db } from '../db';
 import { syllabusService } from '../services/syllabusService';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import ConfirmModal from '../components/ConfirmModal';
 import { downloadGradesExcel } from '../utils/excelGenerator'; // Import Generator
 
@@ -21,7 +21,7 @@ const NilaiPage = () => {
   const [filterTopicId, setFilterTopicId] = useState('');
   
   // Form State
-  const [selectedTopicId, setSelectedTopicId] = useState(''); 
+  const [selectedTopicId, setSelectedTopicId] = useState('');
   const [formData, setFormData] = useState({
     templateId: '', name: '', subject: '', type: 'UH', classId: '',
     date: new Date().toISOString().split('T')[0]

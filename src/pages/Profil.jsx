@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { User, School, Book, Save, Trash2, Plus, X, Clock, Calendar } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import ConfirmModal from '../components/ConfirmModal'; // Import Modal Konfirmasi
 
 // --- DATA KONSTANTA ---

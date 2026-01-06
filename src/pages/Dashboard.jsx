@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 
 // Import fungsi untuk scheduler
 import { getLocalBackupTimestamp, performCloudBackup } from '../services/backupService';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 // --- 1. DEFINISI JAM PELAJARAN (TETAP) ---
 const TIME_MAPPING = {
@@ -105,15 +105,15 @@ const Dashboard = () => {
 
   // --- MENU ITEMS (TETAP) ---
   const menuItems = [
-    { id: 'kelas', label: 'Data Kelas & Siswa', icon: <Users size={24} />, path: '/kelas', color: 'bg-blue-100 text-blue-600' },
-    { id: 'rencana', label: 'Rencana Pembelajaran', icon: <BookOpen size={24} />, path: '/rencana-ajar', color: 'bg-indigo-100 text-indigo-600' },
-    { id: 'monitoring', label: 'Monitoring Perilaku', icon: <Activity size={24} />, path: '/monitoring', color: 'bg-rose-100 text-rose-600', isComingSoon: true },
-    { id: 'perkembangan_kelas', label: 'Perkembangan Kelas', icon: <TrendingUp size={24} />, path: '/perkembangan-kelas', color: 'bg-teal-100 text-teal-600', isComingSoon: true },
-    { id: 'perkembangan_siswa', label: 'Perkembangan Siswa', icon: <Users size={24} />, path: '/perkembangan-siswa', color: 'bg-emerald-100 text-emerald-600', isComingSoon: true },
-    { id: 'statistik', label: 'Statistik Data', icon: <BarChart2 size={24} />, path: '/statistik', color: 'bg-amber-100 text-amber-600' },
-    { id: 'ide', label: 'Ide Mengajar', icon: <Lightbulb size={24} />, path: '/ide', color: 'bg-yellow-100 text-yellow-600'},
-    { id: 'inspirasi', label: 'Sumber Inspirasi', icon: <Youtube size={24} />, path: '/inspirasi', color: 'bg-red-100 text-red-600', isComingSoon: true },
-    { id: 'guru_ai', label: 'Guru AI', icon: <Bot size={24} />, path: '/ai', color: 'bg-purple-100 text-purple-600', isComingSoon: true },
+    { id: 'kelas', label: 'Kelas & Siswa', icon: <Users size={22} />, path: '/kelas', color: 'bg-blue-50 text-blue-600 border-blue-100' },
+    { id: 'rencana', label: 'Rencana Pembelajaran', icon: <BookOpen size={22} />, path: '/rencana-ajar', color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+    { id: 'monitoring', label: 'Monitoring Perilaku', icon: <Activity size={22} />, path: '/monitoring', color: 'bg-rose-100 text-rose-600', isComingSoon: true },
+    { id: 'perkembangan_kelas', label: 'Perkembangan Kelas', icon: <TrendingUp size={22} />, path: '/perkembangan-kelas', color: 'bg-teal-50 text-teal-600', isComingSoon: true },
+    { id: 'perkembangan_siswa', label: 'Perkembangan Siswa', icon: <Users size={22} />, path: '/perkembangan-siswa', color: 'bg-emerald-50 text-emerald-600', isComingSoon: true },
+    { id: 'statistik', label: 'Statistik Data', icon: <BarChart2 size={22} />, path: '/statistik', color: 'bg-amber-50 text-amber-600' },
+    { id: 'ide', label: 'Ide Mengajar', icon: <Lightbulb size={22} />, path: '/ide', color: 'bg-yellow-50 text-yellow-600'},
+    { id: 'inspirasi', label: 'Sumber Inspirasi', icon: <Youtube size={22} />, path: '/inspirasi', color: 'bg-red-50 text-red-600', isComingSoon: true },
+    { id: 'guru_ai', label: 'Guru AI', icon: <Bot size={22} />, path: '/ai', color: 'bg-purple-50 text-purple-600', isComingSoon: true },
   ];
 
   return (

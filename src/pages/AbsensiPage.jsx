@@ -6,7 +6,7 @@ import StudentAttendanceRow from '../components/StudentAttendanceRow';
 import { downloadAttendanceExcel } from '../utils/excelGenerator';
 import { attendanceService } from '../services/attendanceService';
 // --- NEW IMPORTS ---
-import toast from 'react-hot-toast';
+import {toast} from 'sonner';
 import ConfirmModal from '../components/ConfirmModal';
 
 const AbsensiPage = () => {
