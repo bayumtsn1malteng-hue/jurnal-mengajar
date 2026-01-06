@@ -6,13 +6,13 @@ import { db } from '../db';
 import { 
   Users, BookOpen, Settings, Activity, TrendingUp, 
   BarChart2, Lightbulb, Youtube, Bot, ChevronRight,
-  Calendar, Clock, Coffee, CheckCircle, AlertTriangle, Cloud, ArrowRight, CheckCircle2
+  Calendar, Clock, Coffee, CheckCircle, AlertTriangle, Cloud, ArrowRight, CheckCircle2,
+  AlertCircle 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-
-// Import fungsi untuk scheduler
 import { getLocalBackupTimestamp, performCloudBackup } from '../services/backupService';
 import { toast } from 'sonner';
+import { analyzeStudentRisk } from '../services/monitoringService';
 
 // --- 1. DEFINISI JAM PELAJARAN (TETAP) ---
 const TIME_MAPPING = {
@@ -38,16 +38,19 @@ const TIME_MAPPING = {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, loading } = useAuth();
+  // PERBAIKAN: Hapus 'user' dari sini karena tidak dipakai di layout ini
+  const { isAuthenticated, loading } = useAuth(); 
   const [userName, setUserName] = useState('Cikgu');
   
-  // Ref untuk memastikan scheduler hanya jalan sekali per mount
   const schedulerRan = useRef(false);
 
-  // --- LOGIC SCHEDULER BACKUP OTOMATIS (TASK 6.2) ---
+  // --- STATE BARU: Monitoring Risk ---
+  const [riskCount, setRiskCount] = useState(0);
+  const students = useLiveQuery(() => db.students.toArray());
+
+  // --- LOGIC SCHEDULER BACKUP ---
   useEffect(() => {
     const runScheduler = async () => {
-        // Syarat: User login, halaman baru dimuat, belum pernah jalan di sesi ini
         if (isAuthenticated && !schedulerRan.current) {
             schedulerRan.current = true;
             
@@ -57,8 +60,6 @@ const Dashboard = () => {
             const lastBackupStr = getLocalBackupTimestamp();
             const now = new Date().getTime();
             const lastTime = lastBackupStr ? new Date(lastBackupStr).getTime() : 0;
-            
-            // Hitung selisih waktu
             const diffHours = (now - lastTime) / (1000 * 60 * 60);
             
             let shouldBackup = false;
@@ -68,19 +69,34 @@ const Dashboard = () => {
             if (shouldBackup) {
                 console.log(`[Scheduler] Menjalankan backup otomatis (${freq})...`);
                 try {
-                    // Backup silent (tanpa loading screen penuh), tapi beri notif kecil
                     await performCloudBackup();
                     toast.success("Backup otomatis berhasil dijalankan.", { position: 'bottom-right', duration: 3000 });
                 } catch (e) {
                     console.warn("[Scheduler] Gagal backup otomatis:", e);
-                    // Silent fail agar tidak mengganggu user, atau toast error kecil
                 }
             }
         }
     };
-    
     runScheduler();
   }, [isAuthenticated]);
+
+  // --- LOGIC BARU: Hitung Risiko Siswa ---
+  useEffect(() => {
+    const countRisks = async () => {
+      if (!students || students.length === 0) return;
+      
+      let count = 0;
+      for (const s of students) {
+        const analysis = await analyzeStudentRisk(s.id);
+        if (analysis.level !== 'GREEN') {
+          count++;
+        }
+      }
+      setRiskCount(count);
+    };
+
+    countRisks();
+  }, [students]);
 
   // Lazy Init Date
   const [dateInfo] = useState(() => {
@@ -103,11 +119,17 @@ const Dashboard = () => {
     loadSettings();
   }, []);
 
-  // --- MENU ITEMS (TETAP) ---
   const menuItems = [
     { id: 'kelas', label: 'Kelas & Siswa', icon: <Users size={22} />, path: '/kelas', color: 'bg-blue-50 text-blue-600 border-blue-100' },
     { id: 'rencana', label: 'Rencana Pembelajaran', icon: <BookOpen size={22} />, path: '/rencana-ajar', color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
-    { id: 'monitoring', label: 'Monitoring Perilaku', icon: <Activity size={22} />, path: '/monitoring', color: 'bg-rose-100 text-rose-600', isComingSoon: true },
+    { 
+        id: 'monitoring', 
+        label: 'Monitoring Perilaku', 
+        icon: <Activity size={22} />, 
+        path: '/monitoring', 
+        color: 'bg-rose-100 text-rose-600', 
+        badge: riskCount > 0 ? riskCount : null 
+    },
     { id: 'perkembangan_kelas', label: 'Perkembangan Kelas', icon: <TrendingUp size={22} />, path: '/perkembangan-kelas', color: 'bg-teal-50 text-teal-600', isComingSoon: true },
     { id: 'perkembangan_siswa', label: 'Perkembangan Siswa', icon: <Users size={22} />, path: '/perkembangan-siswa', color: 'bg-emerald-50 text-emerald-600', isComingSoon: true },
     { id: 'statistik', label: 'Statistik Data', icon: <BarChart2 size={22} />, path: '/statistik', color: 'bg-amber-50 text-amber-600' },
@@ -131,9 +153,31 @@ const Dashboard = () => {
         <JadwalSection dayName={dateInfo.dayName} todayISO={dateInfo.isoDate} />
       </div>
 
-      {/* DASHBOARD NUDGE */}
       {!loading && (
-        <div className="px-6 mb-6 animate-in slide-in-from-top-2 duration-500">
+        <div className="px-6 mb-6 animate-in slide-in-from-top-2 duration-500 space-y-4">
+          
+          {/* Nudge Monitoring */}
+          {riskCount > 0 && (
+            <div 
+                onClick={() => navigate('/monitoring')}
+                className="bg-red-50 border border-red-100 rounded-2xl p-4 flex items-center gap-4 shadow-sm relative overflow-hidden group cursor-pointer hover:bg-red-100 transition"
+            >
+                <div className="bg-red-100 p-2.5 rounded-full text-red-600 shrink-0">
+                    <AlertCircle size={24} />
+                </div>
+                <div className="flex-1 z-10">
+                    <h3 className="font-bold text-red-800 text-sm">Perhatian Diperlukan</h3>
+                    <p className="text-xs text-red-600 mt-0.5 leading-relaxed">
+                        Terdapat <span className="font-bold">{riskCount} siswa</span> membutuhkan penanganan.
+                    </p>
+                </div>
+                <div className="bg-white px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 shadow-sm">
+                    Cek
+                </div>
+            </div>
+          )}
+
+          {/* Nudge Backup */}
           {!isAuthenticated ? (
             <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 flex items-start gap-4 shadow-sm relative overflow-hidden group">
               <div className="bg-orange-100 p-2 rounded-xl text-orange-600 shrink-0">
@@ -179,9 +223,16 @@ const Dashboard = () => {
             <div 
               key={item.id}
               onClick={() => !item.isComingSoon && navigate(item.path)}
-              className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all active:scale-95 cursor-pointer flex flex-col items-center text-center gap-3 relative overflow-hidden"
+              className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all active:scale-95 cursor-pointer flex flex-col items-center text-center gap-3 relative overflow-hidden group"
             >
               {item.isComingSoon && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-slate-200" />}
+              
+              {item.badge > 0 && (
+                <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm animate-bounce">
+                    {item.badge}
+                </div>
+              )}
+
               <div className={`p-3 rounded-xl ${item.color}`}>{item.icon}</div>
               <span className="text-xs font-bold text-slate-700 leading-tight">{item.label}</span>
             </div>
@@ -277,8 +328,8 @@ const JadwalSection = ({ dayName, todayISO }) => {
                     <div className="w-10 h-10 rounded-lg bg-black/20 flex items-center justify-center shrink-0">{icon}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
-                         <h3 className="font-bold text-sm truncate pr-2">{item.className}</h3>
-                         {item.isJournalDone && (<span className="text-[10px] bg-emerald-500/80 px-1.5 py-0.5 rounded text-white font-medium flex items-center gap-1"><CheckCircle size={8}/> Absen</span>)}
+                          <h3 className="font-bold text-sm truncate pr-2">{item.className}</h3>
+                          {item.isJournalDone && (<span className="text-[10px] bg-emerald-500/80 px-1.5 py-0.5 rounded text-white font-medium flex items-center gap-1"><CheckCircle size={8}/> Absen</span>)}
                       </div>
                       <p className="text-xs text-indigo-100 truncate">{statusText}</p>
                     </div>

@@ -13,26 +13,39 @@ import {
   performCloudBackup, getAvailableBackups, restoreFromCloud, getLastBackupMetadata,
   downloadLocalBackup, restoreFromLocalFile 
 } from '../services/backupService';
-import ConfirmModal from '../components/ConfirmModal';
+
+// Import Komponen Modal Baru
+import ConfirmationModal from '../components/ConfirmModal';
 
 const PengaturanPage = () => {
   const { user, isAuthenticated, login, logout, loading } = useAuth();
   
   // State UI
   const [isBackingUp, setIsBackingUp] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
+  // const [isRestoring, setIsRestoring] = useState(false); // HAPUS: Tidak dipakai lagi
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [backupList, setBackupList] = useState([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [lastBackup, setLastBackup] = useState(null);
 
-  // STATE BARU: Frekuensi Backup
-  const [backupFreq, setBackupFreq] = useState('manual'); // manual, daily, weekly
-
+  // State Frekuensi Backup
+  const [backupFreq, setBackupFreq] = useState('manual');
   const fileInputRef = useRef(null);
 
+  // --- STATE MODAL BARU ---
+  const [modal, setModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'primary',
+    isLoading: false
+  });
+
+  const closeModal = () => setModal(prev => ({ ...prev, isOpen: false }));
+  // ------------------------
+
   useEffect(() => {
-    // Load setting frekuensi dari localStorage
     const savedFreq = localStorage.getItem('backup_frequency') || 'manual';
     setBackupFreq(savedFreq);
 
@@ -41,20 +54,6 @@ const PengaturanPage = () => {
     }
   }, [isAuthenticated]);
 
-  // TAMBAHKAN STATE BARU UNTUK MODAL
-  const [modal, setModal] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-    variant: 'primary', // atau 'danger'
-    isLoading: false
-  });
-
-  // FUNGSI HELPER UNTUK MENUTUP MODAL
-  const closeModal = () => setModal(prev => ({ ...prev, isOpen: false }));
-
-  // Handler Ganti Frekuensi
   const handleFreqChange = (e) => {
       const val = e.target.value;
       setBackupFreq(val);
@@ -62,22 +61,35 @@ const PengaturanPage = () => {
       toast.success(`Frekuensi backup diubah: ${val === 'daily' ? 'Harian' : val === 'weekly' ? 'Mingguan' : 'Manual'}`);
   };
 
-  // --- HANDLER CLOUD ---
+  // --- LOGIKA CLOUD BACKUP ---
   const handleCloudBackup = async () => {
-    if(!confirm("Buat cadangan data ke Google Drive?")) return;
-    setIsBackingUp(true);
-    const toastId = toast.loading("Mengunggah ke Drive...");
-    try {
-        await performCloudBackup();
-        toast.success("Backup Cloud Sukses!", { id: toastId });
-        setLastBackup(await getLastBackupMetadata());
-    } catch (e) {
-        let errorMsg = e.message || "Terjadi kesalahan";
-        if(e.result?.error?.message) errorMsg = e.result.error.message;
-        toast.error("Gagal: " + errorMsg, { id: toastId });
-    } finally {
-        setIsBackingUp(false);
-    }
+    // Gunakan Modal Konfirmasi (bukan window.confirm)
+    setModal({
+        isOpen: true,
+        title: 'Backup ke Cloud',
+        message: 'Apakah Anda ingin mencadangkan data ke Google Drive sekarang?',
+        confirmLabel: 'Ya, Backup',
+        variant: 'primary',
+        onConfirm: async () => {
+            // Logika Eksekusi Backup
+            setModal(prev => ({ ...prev, isLoading: true }));
+            const toastId = toast.loading("Mengunggah ke Drive...");
+            try {
+                setIsBackingUp(true);
+                await performCloudBackup();
+                toast.success("Backup Cloud Sukses!", { id: toastId });
+                setLastBackup(await getLastBackupMetadata());
+                closeModal();
+            } catch (e) {
+                let errorMsg = e.message || "Terjadi kesalahan";
+                if(e.result?.error?.message) errorMsg = e.result.error.message;
+                toast.error("Gagal: " + errorMsg, { id: toastId });
+                closeModal();
+            } finally {
+                setIsBackingUp(false);
+            }
+        }
+    });
   };
 
   const openCloudRestore = async () => {
@@ -96,38 +108,36 @@ const PengaturanPage = () => {
       }
   };
 
-  // Pisahkan logikanya: 1 fungsi pemicu modal, 1 fungsi eksekusi
-const confirmCloudRestore = (fileId) => {
-    setModal({
-        isOpen: true,
-        title: 'Pulihkan Data?',
-        message: 'Data di HP saat ini akan ditimpa dengan data dari Cloud. Tindakan ini tidak bisa dibatalkan.',
-        variant: 'danger', // Merah karena berbahaya
-        confirmLabel: 'Ya, Pulihkan',
-        onConfirm: () => executeCloudRestore(fileId) // Panggil fungsi eksekusi
-    });
-};
-
-const executeCloudRestore = async (fileId) => {
-    // Set loading di dalam modal
+  // Logika Eksekusi Restore (Dipanggil oleh Modal)
+  const executeCloudRestore = async (fileId) => {
     setModal(prev => ({ ...prev, isLoading: true }));
-    
-    // Gunakan toast loading Sonner
     const toastId = toast.loading("Memulihkan data...");
 
     try {
         await restoreFromCloud(fileId);
         toast.success("Berhasil dipulihkan!", { id: toastId });
-        closeModal(); // Tutup modal
-        setShowRestoreModal(false); // Tutup list file
+        closeModal(); 
+        setShowRestoreModal(false); 
         setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
         toast.error("Gagal: " + e.message, { id: toastId });
-        closeModal(); // Tutup modal jika gagal
+        closeModal(); 
     }
-};
+  };
 
-  // --- HANDLER LOCAL ---
+  // Pemicu Modal Konfirmasi Restore
+  const confirmCloudRestore = (fileId) => {
+    setModal({
+        isOpen: true,
+        title: 'Pulihkan Data?',
+        message: 'Data di HP saat ini akan DITIMPA dengan data dari Cloud. Tindakan ini tidak bisa dibatalkan.',
+        variant: 'danger',
+        confirmLabel: 'Ya, Pulihkan',
+        onConfirm: () => executeCloudRestore(fileId)
+    });
+  };
+
+  // --- LOGIKA LOCAL BACKUP ---
   const handleLocalBackup = async () => {
     const toastId = toast.loading("Membuat file backup...");
     try {
@@ -143,19 +153,30 @@ const executeCloudRestore = async (fileId) => {
   const handleFileChange = async (event) => {
       const file = event.target.files[0];
       if (!file) return;
-      if(!confirm(`⚠️ PERINGATAN: Data akan DITIMPA dengan isi file "${file.name}". Lanjutkan?`)) {
-          event.target.value = null; return;
-      }
-      const toastId = toast.loading("Membaca file backup...");
-      try {
-          await restoreFromLocalFile(file);
-          toast.success("Data berhasil dipulihkan!", { id: toastId });
-          setTimeout(() => window.location.reload(), 1500);
-      } catch (e) {
-          toast.error("Gagal restore: " + e.message, { id: toastId });
-      } finally {
-          event.target.value = null;
-      }
+
+      // Gunakan Modal Konfirmasi untuk Local File juga
+      setModal({
+          isOpen: true,
+          title: 'Restore File Lokal',
+          message: `Data akan DITIMPA dengan isi file "${file.name}". Lanjutkan?`,
+          variant: 'danger',
+          confirmLabel: 'Restore',
+          onConfirm: async () => {
+              setModal(prev => ({ ...prev, isLoading: true }));
+              const toastId = toast.loading("Membaca file backup...");
+              try {
+                  await restoreFromLocalFile(file);
+                  toast.success("Data berhasil dipulihkan!", { id: toastId });
+                  closeModal();
+                  setTimeout(() => window.location.reload(), 1500);
+              } catch (e) {
+                  toast.error("Gagal restore: " + e.message, { id: toastId });
+                  closeModal();
+              } finally {
+                  event.target.value = null; // Reset input file
+              }
+          }
+      });
   };
 
   const handleDownloadAbsen = async () => {
@@ -207,7 +228,7 @@ const executeCloudRestore = async (fileId) => {
               <button onClick={logout} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"><LogOut size={20}/></button>
             </div>
 
-            {/* OPSI FREKUENSI BACKUP (BARU) */}
+            {/* FREKUENSI BACKUP */}
             <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-2 text-slate-600">
                     <CalendarClock size={18}/>
@@ -216,7 +237,7 @@ const executeCloudRestore = async (fileId) => {
                 <select 
                     value={backupFreq} 
                     onChange={handleFreqChange}
-                    className="bg-white border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2"
+                    className="bg-white border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 cursor-pointer"
                 >
                     <option value="manual">Manual (Mati)</option>
                     <option value="daily">Harian</option>
@@ -277,36 +298,41 @@ const executeCloudRestore = async (fileId) => {
         </div>
       </div>
 
-      {/* MODAL RESTORE */}
+      {/* MODAL PILIH FILE CLOUD */}
       {showRestoreModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
            <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative max-h-[80vh] flex flex-col">
               <h3 className="font-bold text-lg text-slate-800 mb-4">Pilih Cadangan Cloud</h3>
-              {isRestoring ? (
-                  <div className="py-12 text-center space-y-3">
-                      <Loader2 size={40} className="animate-spin text-indigo-600 mx-auto"/>
-                      <p className="text-sm font-bold text-slate-600">Memulihkan data...</p>
-                  </div>
-              ) : (
-                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                      {backupList.map(file => (
-                          <div key={file.id} className="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer group"
-                               onClick={() => handleCloudRestoreProcess(file.id)}>
-                              <div>
-                                  <p className="font-bold text-sm text-slate-700">{formatTime(file.createdTime)}</p>
-                                  <p className="text-[10px] text-slate-400">Ukuran: {(parseInt(file.size)/1024).toFixed(1)} KB</p>
-                              </div>
-                              <DownloadCloud size={18} className="text-slate-300 group-hover:text-indigo-600"/>
+              
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {backupList.map(file => (
+                      <div key={file.id} className="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer group"
+                            onClick={() => confirmCloudRestore(file.id)}>
+                          <div>
+                              <p className="font-bold text-sm text-slate-700">{formatTime(file.createdTime)}</p>
+                              <p className="text-[10px] text-slate-400">Ukuran: {(parseInt(file.size)/1024).toFixed(1)} KB</p>
                           </div>
-                      ))}
-                  </div>
-              )}
-              {!isRestoring && (
-                  <button onClick={() => setShowRestoreModal(false)} className="mt-4 w-full py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Batal</button>
-              )}
+                          <DownloadCloud size={18} className="text-slate-300 group-hover:text-indigo-600"/>
+                      </div>
+                  ))}
+              </div>
+              
+              <button onClick={() => setShowRestoreModal(false)} className="mt-4 w-full py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Batal</button>
            </div>
         </div>
       )}
+
+      {/* KOMPONEN MODAL KONFIRMASI (WAJIB ADA) */}
+      <ConfirmationModal 
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        onConfirm={modal.onConfirm}
+        title={modal.title}
+        message={modal.message}
+        variant={modal.variant}
+        isLoading={modal.isLoading}
+        confirmLabel={modal.confirmLabel}
+      />
     </div>
   );
 };

@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 // react-hot-toast dimatikan, coba sonner dulu.
 // import { Toaster, toast } from 'react-hot-toast';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { restoreFromCloud } from './services/backupService'; // Import fungsi restore
 import { DownloadCloud } from 'lucide-react';
@@ -22,6 +22,7 @@ import PengaturanPage from './pages/PengaturanPage';
 import JurnalPage from './pages/JurnalPage';
 import StatistikPage from './pages/StatistikPage';
 import IdeMengajarPage from './pages/IdeMengajarPage';
+import MonitoringPage from './pages/MonitoringPage';
 
 // KOMPONEN PEMBANTU: Auto Restore Handler
 const AutoRestoreHandler = () => {
@@ -103,6 +104,7 @@ function App() {
             <Route path="/profil" element={<Profil />} />
             <Route path="/statistik" element={<StatistikPage />} />
             <Route path="/ide" element={<IdeMengajarPage />} />
+            <Route path="/monitoring" element={<MonitoringPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

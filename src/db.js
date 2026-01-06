@@ -83,6 +83,19 @@ db.version(5).stores({
   ideas: '++id, title, type, createdAt, updatedAt, isArchived, linkedJournalId, *tags'
 });
 
+// --- UPDATE V6: Fitur Monitoring Siswa (RTI) ---
+db.version(6).stores({
+  // student_behaviors: Log Perilaku (Positif/Negatif)
+  // type: POSITIVE / NEGATIVE
+  // category: Kedisiplinan / Akademik / Sosial / Prestasi
+  // [studentId+date]: Index agar kita bisa load history siswa dengan cepat urut tanggal
+  student_behaviors: '++id, studentId, date, type, category, [studentId+date]',
+
+  // interventions: Penanganan/Intervensi Guru
+  // status: OPEN (Sedang ditangani) / RESOLVED (Selesai) / MONITORING (Pantau)
+  // [studentId+status]: Index untuk mencari "Siapa siswa X yang kasusnya masih OPEN?"
+  interventions: '++id, studentId, startDate, status, [studentId+status]'
+});
 
 // Seed Data (Contoh Data Awal agar tidak kosong melompong saat dev)
 db.on('populate', () => {
