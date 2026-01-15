@@ -1,10 +1,21 @@
 // src/services/driveService.js
 
+/**
+ * EDUKASI: Variabel Konfigurasi
+ * CLIENT_ID & API_KEY didapat dari Google Cloud Console.
+ * SCOPES menentukan izin apa saja yang diminta aplikasi kepada user.
+ * drive.file: hanya mengizinkan akses ke file yang dibuat oleh aplikasi ini (lebih aman).
+ */
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || ""; 
 const SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile";
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 
+/**
+ * EDUKASI: State Global Layanan
+ * tokenClient: Objek dari GIS (Google Identity Services) untuk mengelola alur login.
+ * gapiInited & gisInited: Flag untuk memastikan kedua library Google sudah siap sebelum digunakan.
+ */
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
@@ -18,7 +29,8 @@ export const initGoogleClient = (updateSigninStatus) => {
     return;
   }
 
-  // 1. Load GAPI (Untuk Data Drive)
+  // 1. Load GAPI (Google API Client Library)
+  // EDUKASI: GAPI adalah library 'tua' namun masih diperlukan untuk berinteraksi dengan API Drive v3.
   const gapiScript = document.createElement('script');
   gapiScript.src = "https://apis.google.com/js/api.js";
   gapiScript.async = true;
@@ -39,7 +51,8 @@ export const initGoogleClient = (updateSigninStatus) => {
   };
   document.body.appendChild(gapiScript);
 
-  // 2. Load GIS (Untuk Login Auth)
+  // 2. Load GIS (Google Identity Services)
+  // EDUKASI: GIS adalah library modern Google khusus untuk menangani Autentikasi dan Otorisasi (Login).
   const gisScript = document.createElement('script');
   gisScript.src = "https://accounts.google.com/gsi/client";
   gisScript.async = true;
@@ -51,13 +64,19 @@ export const initGoogleClient = (updateSigninStatus) => {
         scope: SCOPES,
         callback: (resp) => {
           if (resp.error !== undefined) throw (resp);
-          
+
           // --- FIX PENTING: SET TOKEN KE GAPI ---
-          // Tanpa baris ini, GAPI tidak tahu kalau user sudah login
           if (window.gapi.client) {
              window.gapi.client.setToken(resp);
+             
+             /**
+              * EDUKASI: PERSISTENSI LOGIN (REVISI)
+              * Kita menyimpan objek 'resp' (yang berisi access_token) ke LocalStorage.
+              * Tanpa ini, saat refresh, variabel JavaScript akan hilang dan user dianggap logout.
+              */
+             localStorage.setItem('gdrive_token', JSON.stringify(resp));
           }
-          
+
           updateSigninStatus(true);
         },
       });
@@ -70,35 +89,73 @@ export const initGoogleClient = (updateSigninStatus) => {
   document.body.appendChild(gisScript);
 };
 
+/**
+ * EDUKASI: Logika Pengecekan Status Login (REVISI)
+ * Fungsi ini dipanggil setiap kali salah satu library (GAPI/GIS) selesai dimuat.
+ * Kita memodifikasinya agar memeriksa 'harta karun' di LocalStorage jika memori utama kosong.
+ */
 const maybeEnableButtons = (updateSigninStatus) => {
   if (gapiInited && gisInited) {
-    const token = window.gapi.client.getToken();
+    // Pertama, cek apakah token ada di memori aktif GAPI
+    let token = window.gapi.client.getToken();
+    
+    // Jika kosong (akibat refresh), coba ambil dari penyimpanan permanen browser
+    if (!token) {
+      const savedToken = localStorage.getItem('gdrive_token');
+      if (savedToken) {
+        token = JSON.parse(savedToken);
+        /**
+         * EDUKASI: RE-HYDRATION
+         * Kita 'menyuntikkan' kembali token dari LocalStorage ke dalam GAPI client.
+         * Ini membuat GAPI merasa user tidak pernah meninggalkan halaman.
+         */
+        window.gapi.client.setToken(token);
+      }
+    }
+    
+    // Jika token akhirnya ditemukan, beri tahu React bahwa user sedang login
     updateSigninStatus(!!token); 
   }
 };
 
+/**
+ * EDUKASI: Fungsi Pemicu Login
+ * requestAccessToken akan memunculkan popup Google. 'prompt: consent' memastikan
+ * user selalu ditanya persetujuan (baik untuk testing).
+ */
 export const signIn = () => {
   if (tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
 };
 
+/**
+ * EDUKASI: Fungsi Keluar (REVISI)
+ * Selain memberitahu Google untuk mencabut akses (revoke), kita WAJIB
+ * menghapus data di LocalStorage agar saat refresh, user tidak otomatis login lagi.
+ */
 export const signOut = () => {
   const token = window.gapi.client.getToken();
   if (token !== null) {
+    // Mencabut token di sisi server Google
     window.google.accounts.oauth2.revoke(token.access_token);
+    // Menghapus token di sisi client (memori & storage)
     window.gapi.client.setToken('');
+    localStorage.removeItem('gdrive_token');
   }
 };
 
+/**
+ * EDUKASI: Helper Token
+ * Digunakan untuk mengambil string token mentah yang dibutuhkan saat pemanggilan fetch API manual.
+ */
 export const getAccessToken = () => {
   return window.gapi.client.getToken()?.access_token;
 };
 
 // ==========================================
-// FUNGSI API DRIVE
+// FUNGSI API DRIVE (TIDAK BERUBAH)
 // ==========================================
 
 export const findAppFolder = async (folderName = "Jurnal_Mengajar_Backup") => {
-  // GAPI request ini akan gagal jika token belum di-set
   const response = await window.gapi.client.drive.files.list({
     q: `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`,
     fields: 'files(id, name)',
@@ -125,7 +182,7 @@ export const uploadFileToDrive = async (folderId, fileName, jsonContent) => {
     if (!accessToken) throw new Error("Token akses tidak ditemukan (Silakan login ulang)");
 
     const fileContent = JSON.stringify(jsonContent);
-    
+
     const metadata = {
         name: fileName,
         mimeType: 'application/json',
@@ -141,7 +198,7 @@ export const uploadFileToDrive = async (folderId, fileName, jsonContent) => {
         headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
         body: form
     });
-    
+
     if(!response.ok) {
         const errJson = await response.json();
         throw new Error(errJson.error?.message || "Gagal upload file");
