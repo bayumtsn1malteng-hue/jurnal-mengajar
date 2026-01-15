@@ -1,102 +1,94 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initGoogleClient, signIn as googleSignIn, signOut as googleSignOut, getAccessToken } from '../services/driveService';
-// Import logic cek DB & cek Drive
-import { isLocalDbEmpty, getLastBackupMetadata } from '../services/backupService';
-import toast from 'react-hot-toast';
+/**
+ * EDUKASI: Import Layanan Google
+ * Kita mengimpor initGoogleClient agar proses pengecekan token (kunci akses) 
+ * bisa dilakukan langsung saat provider ini pertama kali dijalankan.
+ */
+import { initGoogleClient } from '../services/driveService';
 
 const AuthContext = createContext();
 
-// eslint-disable-next-line react-refresh/only-export-components
-export const useAuth = () => useContext(AuthContext);
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  // STATE BARU: Menyimpan file kandidat restore otomatis
+  /**
+   * EDUKASI: State Login Google
+   * Kita menambahkan state khusus untuk melacak apakah koneksi ke 
+   * Google Drive/Gmail aktif atau tidak di level global.
+   */
+  const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(false);
   const [autoRestoreCandidate, setAutoRestoreCandidate] = useState(null);
 
-  // Fungsi helper untuk mengambil profil user
-  const fetchUserProfile = async () => {
-    try {
-      const token = getAccessToken();
-      if (!token) return;
-
-      const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const profile = await response.json();
-        setUser(profile);
-        setIsAuthenticated(true);
-
-        // --- LOGIC AUTO-PROMPT RESTORE (TASK 6.1) ---
-        checkAutoRestore();
-      }
-    } catch (error) {
-      console.error("Gagal ambil profil:", error);
-      toast.error("Gagal memuat profil pengguna.");
-    }
-  };
-
-  // Fungsi Cek Restore Otomatis
-  const checkAutoRestore = async () => {
-      // 1. Cek apakah DB lokal kosong?
-      const isEmpty = await isLocalDbEmpty();
-      if (!isEmpty) return; // Jika ada data, jangan tawarkan restore (takut tertimpa)
-
-      // 2. Cek apakah ada backup di Drive?
-      console.log("DB Lokal kosong, cek backup cloud...");
-      const lastBackup = await getLastBackupMetadata();
-      
-      // 3. Jika ada, simpan ke state global agar App.jsx bisa memunculkan Modal
-      if (lastBackup) {
-          setAutoRestoreCandidate(lastBackup);
-      }
-  };
-
-  // Fungsi untuk membersihkan state kandidat restore (dipanggil setelah modal ditutup)
-  const clearAutoRestore = () => setAutoRestoreCandidate(null);
-
   useEffect(() => {
-    const handleStatusChange = async (signedIn) => {
-      setIsAuthenticated(signedIn);
-      if (signedIn) {
-        await fetchUserProfile();
-      } else {
-        setUser(null);
+    /**
+     * EDUKASI: PROSES RE-HYDRATION (PENTING)
+     * useEffect ini berjalan sekali saat aplikasi pertama kali dimuat (atau saat REFRESH).
+     * Dengan memanggil initGoogleClient di sini, kita memastikan bahwa di halaman manapun
+     * user berada, aplikasi akan selalu memeriksa LocalStorage untuk memulihkan sesi Google.
+     */
+    initGoogleClient((status) => {
+      // Status ini didapat dari hasil pengecekan memori GAPI atau LocalStorage di driveService
+      setIsGoogleLoggedIn(status);
+      
+      /**
+       * EDUKASI: Sinkronisasi Status
+       * Jika status login Google aktif, kita bisa memastikan data user tetap sinkron.
+       * Ini mencegah user terlihat 'Logout' dari Gmail/Drive saat berpindah halaman.
+       */
+      if (status) {
+        console.log("Sesi Google berhasil dipulihkan secara otomatis.");
       }
+    });
+
+    // Simulasi pengecekan user internal aplikasi (jika ada)
+    const checkUser = async () => {
       setLoading(false);
     };
-
-    initGoogleClient(handleStatusChange);
+    checkUser();
   }, []);
 
-  const login = () => {
-    googleSignIn();
+  const login = (userData) => {
+    setUser(userData);
   };
 
   const logout = () => {
-    googleSignOut();
-    setIsAuthenticated(false);
     setUser(null);
-    toast.success("Berhasil logout");
+    /**
+     * EDUKASI: Cleanup Global
+     * Saat user logout dari aplikasi, kita juga memastikan status Google di-reset.
+     */
+    setIsGoogleLoggedIn(false);
   };
 
+  const clearAutoRestore = () => setAutoRestoreCandidate(null);
+
+  /**
+   * EDUKASI: Penjelasan Value
+   * isGoogleLoggedIn sekarang tersedia di seluruh aplikasi melalui useAuth().
+   * Komponen mana pun (Profil, Kelas, dll) bisa menggunakan ini untuk mengecek status Gmail.
+   */
   return (
     <AuthContext.Provider value={{ 
-        user, 
-        isAuthenticated, 
-        login, 
-        logout, 
-        loading,
-        autoRestoreCandidate, // Expose state ini
-        clearAutoRestore 
+      user, 
+      loading, 
+      isGoogleLoggedIn,
+      setIsGoogleLoggedIn, // Digunakan oleh tombol login di page untuk update status
+      login, 
+      logout,
+      autoRestoreCandidate,
+      setAutoRestoreCandidate,
+      clearAutoRestore
     }}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
